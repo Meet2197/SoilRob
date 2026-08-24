@@ -104,22 +104,8 @@ SoilRob/
 ├── Dockerfile
 ├── README.md                              ← this file
 ├── .gitignore
-│
-├── FLIR/
-│   ├── FLIR AX.py
-│   ├── MQTT_BRIDGE.py
-│   └── soil_rob.py
-│
-├── HAIP_blackbucketV2/
-│   └── Black_Bucket.py
-│
-├── KRONOS_LiDAR/
-│   ├── CAN_bus
-│   └── kronos_lidar.py
-│
-├── backend/
-│   ├── main.py
-│   └── requirements.txt
+├── main.py
+├── requirements.txt
 │
 └── fusion_platform/
     ├── .vscode/
