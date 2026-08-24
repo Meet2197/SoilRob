@@ -1,75 +1,268 @@
-import threading
-from collections import deque
-import pandas as pd
-from src.qa.qa_protocol import run_qa_pipeline
-from src.semantic.alignment import harmonize
+from typing import Any
+
+from fastapi import FastAPI, HTTPException, Query
+
+from src.fusion.fusion_engine import FusionEngine
 
 
-class FusionEngine:
-    def __init__(self, config: dict):
-        self.config = config
-        self.tolerance_s = config["fusion"]["time_tolerance_s"]
-        bufsize = config["fusion"]["buffer_size"]
-        self.thermal_buffer: dict[str, deque] = {}
-        self.hsi_buffer: dict[str, deque] = {}
-        self.fused_buffer: deque = deque(maxlen=bufsize)
-        self.quarantine_buffer: deque = deque(maxlen=bufsize)
-        self.qa_reports: deque = deque(maxlen=bufsize)
-        self._last_ts: dict[str, float] = {}
-        self.lock = threading.Lock()
+# ============================================================
+# FastAPI application
+# ============================================================
 
-    def _buf(self, store: dict, site_id: str) -> deque:
-        if site_id not in store:
-            store[site_id] = deque(maxlen=self.config["fusion"]["buffer_size"])
-        return store[site_id]
+app = FastAPI(
+    title="SoilRob Fusion API",
+    description="Multi-sensor soil data fusion and quality-assurance API",
+    version="1.0.0",
+)
 
-    def add_thermal(self, site_id: str, raw: dict, crs: str = "EPSG:4326"):
-        rec = harmonize(raw, site_id, "thermal", crs)
-        with self.lock:
-            self._buf(self.thermal_buffer, site_id).append(rec)
-            self._try_fuse(site_id)
 
-    def add_hsi(self, site_id: str, raw: dict, crs: str = "EPSG:4326"):
-        rec = harmonize(raw, site_id, "hsi", crs)
-        with self.lock:
-            self._buf(self.hsi_buffer, site_id).append(rec)
-            self._try_fuse(site_id)
+# ============================================================
+# Shared FusionEngine instance
+# ============================================================
 
-    def _try_fuse(self, site_id: str):
-        t_buf = self._buf(self.thermal_buffer, site_id)
-        h_buf = self._buf(self.hsi_buffer, site_id)
-        if not t_buf or not h_buf:
-            return
-        t = t_buf[-1]
-        h = h_buf[-1]
-        if abs(t["timestamp_utc"] - h["timestamp_utc"]) <= self.tolerance_s:
-            fused = {**h, **{k: v for k, v in t.items() if k in ("temperature_c",)}}
-            fused["sensor_type"] = "fused_thermal_hsi"
-            fused["record_id"] = f"{site_id}_fused_{fused['timestamp_utc']}"
-            self._qa_and_store(site_id, fused)
-            t_buf.pop()
-            h_buf.pop()
+# Injected by main.py:
+#
+#     unified_api.engine = engine
+#
+engine: FusionEngine | None = None
 
-    def _qa_and_store(self, site_id: str, fused: dict):
-        history_df = pd.DataFrame(list(self.fused_buffer)) if self.fused_buffer else pd.DataFrame()
-        required = ["timestamp_utc", "temperature_c", "hsi_serial_number", "crs"]
-        report = run_qa_pipeline(
-            fused, history_df, self.config, self._last_ts.get(site_id),
-            required_fields=[f for f in required if f in fused], numeric_field="temperature_c"
+
+# ============================================================
+# Helper functions
+# ============================================================
+
+def get_engine() -> FusionEngine:
+    """
+    Return the active FusionEngine.
+
+    Raises HTTP 503 if the application has not been
+    initialized by main.py yet.
+    """
+
+    if engine is None:
+        raise HTTPException(
+            status_code=503,
+            detail="FusionEngine is not initialized",
         )
-        self.qa_reports.append(report)
-        self._last_ts[site_id] = fused["timestamp_utc"]
 
-        if report["overall_pass"]:
-            self.fused_buffer.append(fused)
-        else:
-            self.quarantine_buffer.append({"record": fused, "qa": report})
+    return engine
 
-    def latest(self):
-        return self.fused_buffer[-1] if self.fused_buffer else None
 
-    def history(self, n: int = 100):
-        return list(self.fused_buffer)[-n:]
+def json_safe(value: Any) -> Any:
+    """
+    Convert common pandas / NumPy values into JSON-safe values.
+    """
 
-    def qa_summary(self, n: int = 50):
-        return list(self.qa_reports)[-n:]
+    if value is None:
+        return None
+
+    # pandas / NumPy scalar values
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except (ValueError, TypeError):
+            pass
+
+    # dictionaries
+    if isinstance(value, dict):
+        return {
+            str(key): json_safe(val)
+            for key, val in value.items()
+        }
+
+    # lists / tuples
+    if isinstance(value, (list, tuple)):
+        return [
+            json_safe(item)
+            for item in value
+        ]
+
+    return value
+
+
+# ============================================================
+# Root
+# ============================================================
+
+@app.get("/")
+def root():
+    """
+    Basic API information.
+    """
+
+    return {
+        "name": "SoilRob Fusion API",
+        "version": app.version,
+        "status": "running",
+        "engine_initialized": engine is not None,
+    }
+
+
+# ============================================================
+# Health
+# ============================================================
+
+@app.get("/health")
+def health():
+    """
+    Application health status.
+    """
+
+    active_engine = engine is not None
+
+    return {
+        "status": "ok" if active_engine else "degraded",
+        "engine_initialized": active_engine,
+    }
+
+
+# ============================================================
+# Latest fused record
+# ============================================================
+
+@app.get("/latest")
+def latest():
+    """
+    Return the most recent QA-approved fused record.
+    """
+
+    active_engine = get_engine()
+
+    record = active_engine.latest()
+
+    if record is None:
+        return {
+            "status": "no_data",
+            "record": None,
+        }
+
+    return {
+        "status": "ok",
+        "record": json_safe(record),
+    }
+
+
+# ============================================================
+# Fusion history
+# ============================================================
+
+@app.get("/history")
+def history(
+    n: int = Query(
+        default=100,
+        ge=1,
+        le=10000,
+        description="Number of recent fused records to return",
+    )
+):
+    """
+    Return recent QA-approved fused records.
+    """
+
+    active_engine = get_engine()
+
+    records = active_engine.history(n)
+
+    return {
+        "status": "ok",
+        "count": len(records),
+        "records": json_safe(records),
+    }
+
+
+# ============================================================
+# QA reports
+# ============================================================
+
+@app.get("/qa")
+def qa_summary(
+    n: int = Query(
+        default=50,
+        ge=1,
+        le=10000,
+        description="Number of recent QA reports to return",
+    )
+):
+    """
+    Return recent quality-assurance reports.
+    """
+
+    active_engine = get_engine()
+
+    reports = active_engine.qa_summary(n)
+
+    return {
+        "status": "ok",
+        "count": len(reports),
+        "reports": json_safe(reports),
+    }
+
+
+# ============================================================
+# API status / statistics
+# ============================================================
+
+@app.get("/status")
+def status():
+    """
+    Return a compact operational status of the fusion system.
+    """
+
+    active_engine = get_engine()
+
+    latest_record = active_engine.latest()
+    history_records = active_engine.history(1)
+    qa_reports = active_engine.qa_summary(1)
+
+    return {
+        "status": "running",
+        "engine_initialized": True,
+        "has_fused_data": latest_record is not None,
+        "fused_record_count": len(
+            active_engine.fused_buffer
+        ),
+        "quarantine_record_count": len(
+            active_engine.quarantine_buffer
+        ),
+        "qa_report_count": len(
+            active_engine.qa_reports
+        ),
+        "latest_timestamp": (
+            latest_record.get("timestamp_utc")
+            if latest_record
+            else None
+        ),
+        "latest_qa_report": (
+            json_safe(qa_reports[-1])
+            if qa_reports
+            else None
+        ),
+    }
+
+
+# ============================================================
+# Quarantine records
+# ============================================================
+
+@app.get("/quarantine")
+def quarantine(
+    n: int = Query(
+        default=50,
+        ge=1,
+        le=10000,
+        description="Number of recent quarantined records to return",
+    )
+):
+    """
+    Return records that failed QA validation.
+    """
+
+    active_engine = get_engine()
+
+    records = list(active_engine.quarantine_buffer)[-n:]
+
+    return {
+        "status": "ok",
+        "count": len(records),
+        "records": json_safe(records),
+    }

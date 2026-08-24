@@ -6,3 +6,5 @@ numpy
 pyproj
 pyyaml
 requests
+matplotlib
+Pillow

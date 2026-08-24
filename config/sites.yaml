@@ -1,50 +1,107 @@
 sites:
+
   site_A:
     crs_native: "EPSG:4326"
+
     thermal:
       ip: "192.168.1.20"
       port: 80
-      poll_hz: 1
+
+      acquisition_interval_s: 10
+      acquisition_enabled: true
+
+      temporary_dir: "data/thermal_temp/site_A"
+      evaluation_dir: "data/thermal_evaluation/site_A"
+
+      csv_filename: "thermal_evaluation.csv"
+
+      qa:
+        enabled: true
+
+        min_temperature_c: -40
+        max_temperature_c: 150
+
+        max_missing_fraction: 0.05
+        max_jump_c: 15
+        max_rate_c_per_s: 5
+
+        min_valid_samples: 1
+
     hsi:
       ip: "192.168.7.1"
       port: 7892
+      acquisition_interval_s: 10
+      acquisition_enabled: true
       gain: 1.0
-      exposure_us: 5000
+      exposure_us: 10000
+
 
   site_B:
-    crs_native: "EPSG:25832"
+    crs_native: "EPSG:4326"
+
     thermal:
       ip: "192.168.1.21"
       port: 80
-      poll_hz: 1
+      acquisition_interval_s: 10
+      acquisition_enabled: true
+
+      temporary_dir: "data/thermal_temp/site_B"
+      evaluation_dir: "data/thermal_evaluation/site_B"
+      csv_filename: "thermal_evaluation.csv"
+
+      qa:
+        enabled: true
+        min_temperature_c: -40
+        max_temperature_c: 150
+        max_missing_fraction: 0.05
+        max_jump_c: 15
+        max_rate_c_per_s: 5
+        min_valid_samples: 1
+
     hsi:
       ip: "192.168.7.2"
       port: 7892
+      acquisition_interval_s: 10
+      acquisition_enabled: true
       gain: 1.0
-      exposure_us: 5000
+      exposure_us: 10000
+
 
   site_C:
-    crs_native: "EPSG:25833"
+    crs_native: "EPSG:4326"
+
     thermal:
       ip: "192.168.1.22"
       port: 80
-      poll_hz: 1
+      acquisition_interval_s: 10
+      acquisition_enabled: true
+
+      temporary_dir: "data/thermal_temp/site_C"
+      evaluation_dir: "data/thermal_evaluation/site_C"
+      csv_filename: "thermal_evaluation.csv"
+
+      qa:
+        enabled: true
+        min_temperature_c: -40
+        max_temperature_c: 150
+        max_missing_fraction: 0.05
+        max_jump_c: 15
+        max_rate_c_per_s: 5
+        min_valid_samples: 1
+
     hsi:
       ip: "192.168.7.3"
       port: 7892
+      acquisition_interval_s: 10
+      acquisition_enabled: true
       gain: 1.0
-      exposure_us: 5000
+      exposure_us: 10000
+
 
 fusion:
-  time_tolerance_s: 0.5
+  time_tolerance_s: 1.0
   buffer_size: 5000
 
-qa:
-  completeness_threshold: 0.95
-  outlier_method: "iqr"
-  outlier_k: 1.5
-  max_temporal_gap_s: 10.0
-  expected_crs: "EPSG:4326"
 
 api:
   host: "0.0.0.0"
