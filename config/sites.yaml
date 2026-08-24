@@ -1,0 +1,51 @@
+sites:
+  site_A:
+    crs_native: "EPSG:4326"
+    thermal:
+      ip: "192.168.1.20"      # FLIR AX8 - set to actual camera/MFD network IP
+      port: 80
+      poll_hz: 1
+    lidar:
+      can_channel: "can0"     # socketCAN interface
+      bitrate: 250000
+      control_id: 0x123
+      status_id: 0x124
+
+  site_B:
+    crs_native: "EPSG:25832"
+    thermal:
+      ip: "192.168.1.21"
+      port: 80
+      poll_hz: 1
+    lidar:
+      can_channel: "can1"
+      bitrate: 250000
+      control_id: 0x123
+      status_id: 0x124
+
+  site_C:
+    crs_native: "EPSG:25833"
+    thermal:
+      ip: "192.168.1.22"
+      port: 80
+      poll_hz: 1
+    lidar:
+      can_channel: "can2"
+      bitrate: 250000
+      control_id: 0x123
+      status_id: 0x124
+
+fusion:
+  time_tolerance_s: 0.2
+  buffer_size: 5000
+
+qa:
+  completeness_threshold: 0.95
+  outlier_method: "iqr"       # or "zscore"
+  outlier_k: 1.5
+  max_temporal_gap_s: 5.0
+  expected_crs: "EPSG:4326"
+
+api:
+  host: "0.0.0.0"
+  port: 8000
