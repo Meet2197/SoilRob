@@ -4,7 +4,7 @@ import uvicorn
 
 from src.fusion.fusion_engine import FusionEngine
 from src.adapters.thermal_adapter import ThermalPoller
-from src.adapters.lidar_adapter import LidarPoller
+from src.adapters.hsi_adapter import HSIPoller
 import src.api.unified_api as unified_api
 
 CONFIG_PATH = Path(__file__).parent / "config" / "sites.yaml"
@@ -32,13 +32,13 @@ def main():
         t_poller.start()
         pollers.append(t_poller)
 
-        l_cfg = site_cfg["lidar"]
-        l_poller = LidarPoller(
-            site_id, l_cfg["can_channel"], l_cfg["bitrate"], l_cfg["status_id"],
-            callback=lambda sid, raw, c=crs: engine.add_lidar(sid, raw, c),
+        h_cfg = site_cfg["hsi"]
+        h_poller = HSIPoller(
+            site_id, h_cfg["ip"], h_cfg["port"], h_cfg["gain"], h_cfg["exposure_us"],
+            callback=lambda sid, raw, c=crs: engine.add_hsi(sid, raw, c),
         )
-        l_poller.start()
-        pollers.append(l_poller)
+        h_poller.start()
+        pollers.append(h_poller)
 
     print(f"SoilRob Fusion API starting on {config['api']['host']}:{config['api']['port']}")
     uvicorn.run(unified_api.app, host=config["api"]["host"], port=config["api"]["port"])

@@ -1,8 +1,6 @@
 """
 Polls a FLIR AX8 thermal camera over its network (IP configured per site).
-Replace `_read_spot_temperature` with the actual FLIR AX8 web/ONVIF call
-for your firmware once confirmed (AX8 exposes spot data via its web UI /
-Raymarine bridge; adjust endpoint/auth as needed).
+Adjust `_read_spot_temperature` to your actual FLIR AX8 endpoint.
 """
 import threading
 import time
@@ -21,7 +19,6 @@ class ThermalPoller(threading.Thread):
 
     def _read_spot_temperature(self) -> dict | None:
         try:
-            # TODO: adjust to your AX8's real endpoint (ONVIF/CGI/Modbus bridge)
             resp = requests.get(f"{self.base_url}/api/spot", timeout=2)
             resp.raise_for_status()
             data = resp.json()

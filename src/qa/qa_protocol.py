@@ -1,9 +1,9 @@
 """
 Automated QA protocol: completeness, outlier detection,
 CRS validation, temporal consistency.
+Sensor-agnostic - works for thermal, HSI, or any fused record.
 """
 from __future__ import annotations
-import numpy as np
 import pandas as pd
 from pyproj import CRS
 from datetime import datetime, timezone
@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 def check_completeness(record: dict, required_fields: list[str]) -> dict:
     missing = [f for f in required_fields if record.get(f) is None]
-    ratio_present = 1 - len(missing) / len(required_fields)
+    ratio_present = 1 - len(missing) / len(required_fields) if required_fields else 1.0
     return {
         "check": "completeness",
         "passed": len(missing) == 0,
@@ -51,11 +51,11 @@ def validate_crs(crs_str: str, expected: str = "EPSG:4326") -> dict:
         return {"check": "crs_validation", "passed": False, "error": str(e)}
 
 
-def check_temporal_consistency(last_ts: float | None, current_ts: float, max_gap_s: float = 5.0) -> dict:
+def check_temporal_consistency(last_ts: float | None, current_ts: float, max_gap_s: float = 10.0) -> dict:
     if last_ts is None:
         return {"check": "temporal_consistency", "passed": True, "gap_s": None}
     gap = current_ts - last_ts
-    passed = 0 <= gap <= max_gap_s * 10  # allow up to 10x expected gap before flag
+    passed = 0 <= gap <= max_gap_s * 10
     return {"check": "temporal_consistency", "passed": passed, "gap_s": round(gap, 3)}
 
 

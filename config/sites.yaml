@@ -2,14 +2,14 @@ sites:
   site_A:
     crs_native: "EPSG:4326"
     thermal:
-      ip: "192.168.1.20"      # FLIR AX8 - set to actual camera/MFD network IP
+      ip: "192.168.1.20"
       port: 80
       poll_hz: 1
-    lidar:
-      can_channel: "can0"     # socketCAN interface
-      bitrate: 250000
-      control_id: 0x123
-      status_id: 0x124
+    hsi:
+      ip: "192.168.7.1"
+      port: 7892
+      gain: 1.0
+      exposure_us: 5000
 
   site_B:
     crs_native: "EPSG:25832"
@@ -17,11 +17,11 @@ sites:
       ip: "192.168.1.21"
       port: 80
       poll_hz: 1
-    lidar:
-      can_channel: "can1"
-      bitrate: 250000
-      control_id: 0x123
-      status_id: 0x124
+    hsi:
+      ip: "192.168.7.2"
+      port: 7892
+      gain: 1.0
+      exposure_us: 5000
 
   site_C:
     crs_native: "EPSG:25833"
@@ -29,21 +29,21 @@ sites:
       ip: "192.168.1.22"
       port: 80
       poll_hz: 1
-    lidar:
-      can_channel: "can2"
-      bitrate: 250000
-      control_id: 0x123
-      status_id: 0x124
+    hsi:
+      ip: "192.168.7.3"
+      port: 7892
+      gain: 1.0
+      exposure_us: 5000
 
 fusion:
-  time_tolerance_s: 0.2
+  time_tolerance_s: 0.5
   buffer_size: 5000
 
 qa:
   completeness_threshold: 0.95
-  outlier_method: "iqr"       # or "zscore"
+  outlier_method: "iqr"
   outlier_k: 1.5
-  max_temporal_gap_s: 5.0
+  max_temporal_gap_s: 10.0
   expected_crs: "EPSG:4326"
 
 api:
