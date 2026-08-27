@@ -1,7 +1,3 @@
-"""
-Polls a FLIR AX8 thermal camera over its network (IP configured per site).
-Adjust `_read_spot_temperature` to your actual FLIR AX8 endpoint.
-"""
 import threading
 import logging
 import requests
