@@ -62,16 +62,20 @@ def check_temporal_consistency(last_ts: float | None, current_ts: float, max_gap
 def run_qa_pipeline(record: dict, history: pd.DataFrame, config: dict, last_ts: float | None,
                      required_fields: list[str], numeric_field: str) -> dict:
     """Runs all four QA checks and returns a structured report + overall pass/fail."""
+    qa_config = config.get("qa", {})
+    if not qa_config:
+        qa_config = config.get("sites", {}).get(record.get("site_id"), {}).get("thermal", {}).get("qa", {})
     results = []
     results.append(check_completeness(record, required_fields))
     results.append(check_outlier(
         record, numeric_field,
         history[numeric_field] if numeric_field in history else pd.Series(dtype=float),
-        method=config["qa"]["outlier_method"], k=config["qa"]["outlier_k"]
+        method=qa_config.get("outlier_method", "iqr"), k=qa_config.get("outlier_k", 1.5)
     ))
-    results.append(validate_crs(record.get("crs", "EPSG:4326"), config["qa"]["expected_crs"]))
+    expected_crs = qa_config.get("expected_crs", config.get("sites", {}).get(record.get("site_id"), {}).get("crs_native", "EPSG:4326"))
+    results.append(validate_crs(record.get("crs", "EPSG:4326"), expected_crs))
     results.append(check_temporal_consistency(
-        last_ts, record.get("timestamp_utc"), config["qa"]["max_temporal_gap_s"]
+        last_ts, record.get("timestamp_utc"), qa_config.get("max_temporal_gap_s", 10.0)
     ))
 
     overall_pass = all(r["passed"] for r in results)

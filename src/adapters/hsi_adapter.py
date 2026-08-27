@@ -7,7 +7,10 @@ import threading
 import time
 import struct
 import socket
+import logging
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 
 class HSIPoller(threading.Thread):
@@ -22,58 +25,79 @@ class HSIPoller(threading.Thread):
         self.callback = callback
         self.interval_s = interval_s
         self._stop = threading.Event()
+        self._offline = False
+        self._failure_count = 0
 
-    def _connect(self, timeout=5):
+    def _connect(self, timeout=2):
         conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         conn.settimeout(timeout)
         conn.connect((self.ip, self.port))
         return conn
 
+    @staticmethod
+    def _recv_exact(conn, size: int) -> bytes:
+        data = bytearray()
+        while len(data) < size:
+            chunk = conn.recv(size - len(data))
+            if not chunk:
+                raise ConnectionError("HSI device closed the connection")
+            data.extend(chunk)
+        return bytes(data)
+
     def _get_serial_number(self) -> str | None:
+        conn = None
         try:
             conn = self._connect()
             message = struct.pack('<bbhIIi', 1, 0, 12, 0, 0, int(time.time()))
-            conn.send(message)
-            size = struct.unpack('<i', conn.recv(4))[0]
-            serial = conn.recv(size).decode()
-            conn.close()
+            conn.sendall(message)
+            size = struct.unpack('<i', self._recv_exact(conn, 4))[0]
+            if size <= 0 or size > 4096:
+                raise ValueError(f"invalid serial response size: {size}")
+            serial = self._recv_exact(conn, size).decode().strip()
             return serial
-        except Exception as e:
-            print(f"[HSIPoller:{self.site_id}] serial read error: {e}")
+        except (OSError, ValueError, UnicodeDecodeError):
             return None
+        finally:
+            if conn is not None:
+                conn.close()
 
     def _set_gain_exposure(self) -> bool:
+        conn = None
         try:
             conn = self._connect()
             gain_int = int(round(self.gain, 1) * 10)
             message = struct.pack('<bbhIIi', 1, 0, 3, gain_int, int(self.exposure_us), int(time.time()))
-            conn.send(message)
-            conn.close()
+            conn.sendall(message)
             return True
-        except Exception as e:
-            print(f"[HSIPoller:{self.site_id}] set gain/exposure error: {e}")
+        except (OSError, ValueError):
             return False
+        finally:
+            if conn is not None:
+                conn.close()
 
     def _trigger_hsi_image(self, description: str = "") -> bool:
+        conn = None
         try:
             conn = self._connect()
             message = struct.pack('<bbhIIi', 1, 0, 8, len(description), 0, int(time.time()))
-            conn.send(message)
+            conn.sendall(message)
             if description:
-                conn.send(description.encode())
-            conn.close()
+                conn.sendall(description.encode())
             return True
-        except Exception as e:
-            print(f"[HSIPoller:{self.site_id}] trigger HSI error: {e}")
+        except (OSError, ValueError):
             return False
+        finally:
+            if conn is not None:
+                conn.close()
 
     def run(self):
         settings_applied = self._set_gain_exposure()
         serial = self._get_serial_number()
         if serial is None:
-            print(f"[HSIPoller:{self.site_id}] unavailable; serial number could not be read")
+            self._mark_offline("serial number could not be read")
         else:
-            print(
+            self._mark_online()
+            logger.info(
                 f"[HSIPoller:{self.site_id}] connected, serial={serial}"
                 f" (settings={'applied' if settings_applied else 'not applied'})"
             )
@@ -81,6 +105,7 @@ class HSIPoller(threading.Thread):
         while not self._stop.is_set():
             description = f"{self.site_id}_{int(time.time())}"
             if self._trigger_hsi_image(description):
+                self._mark_online()
                 reading = {
                     "gain": self.gain,
                     "exposure_us": self.exposure_us,
@@ -89,7 +114,24 @@ class HSIPoller(threading.Thread):
                     "timestamp_utc": datetime.now(timezone.utc).timestamp(),
                 }
                 self.callback(self.site_id, reading)
-            time.sleep(self.interval_s)
+            else:
+                self._mark_offline("trigger request timed out or was rejected")
+            retry_interval = min(self.interval_s * (2 ** min(self._failure_count, 5)), 60.0)
+            self._stop.wait(retry_interval)
+
+    def _mark_offline(self, reason: str) -> None:
+        self._failure_count += 1
+        if not self._offline:
+            logger.warning("[HSIPoller:%s] camera offline: %s", self.site_id, reason)
+            self._offline = True
+        elif self._failure_count == 10:
+            logger.warning("[HSIPoller:%s] still offline after %d attempts", self.site_id, self._failure_count)
+
+    def _mark_online(self) -> None:
+        if self._offline:
+            logger.info("[HSIPoller:%s] camera connection restored", self.site_id)
+        self._offline = False
+        self._failure_count = 0
 
     def stop(self):
         self._stop.set()

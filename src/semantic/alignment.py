@@ -22,6 +22,7 @@ SITE_FIELD_MAP = {
         "image_path": "hsi_image_path",
     },
     "site_B": {
+        "temp_f": "temperature_c",
         "thermal_temperature": "temperature_c",   # already Celsius
         "gain": "hsi_gain",
         "exposure_us": "hsi_exposure_us",
@@ -29,6 +30,7 @@ SITE_FIELD_MAP = {
         "image_path": "hsi_image_path",
     },
     "site_C": {
+        "temp_f": "temperature_c",
         "cam_temp_k": "temperature_c",            # Kelvin -> Celsius
         "gain": "hsi_gain",
         "exposure_us": "hsi_exposure_us",

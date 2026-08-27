@@ -3,9 +3,11 @@ Polls a FLIR AX8 thermal camera over its network (IP configured per site).
 Adjust `_read_spot_temperature` to your actual FLIR AX8 endpoint.
 """
 import threading
-import time
+import logging
 import requests
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 
 class ThermalPoller(threading.Thread):
@@ -16,18 +18,32 @@ class ThermalPoller(threading.Thread):
         self.interval = 1.0 / max(poll_hz, 0.1)
         self.callback = callback
         self._stop = threading.Event()
+        self._offline = False
+        self._failure_count = 0
 
     def _read_spot_temperature(self) -> dict | None:
         try:
             resp = requests.get(f"{self.base_url}/api/spot", timeout=2)
             resp.raise_for_status()
             data = resp.json()
+            temperature = data.get("spot_temp_f")
+            if temperature is None:
+                raise ValueError("FLIR response does not contain spot_temp_f")
+            if self._offline:
+                logger.info("[ThermalPoller:%s] camera connection restored", self.site_id)
+            self._offline = False
+            self._failure_count = 0
             return {
-                "temp_f": data.get("spot_temp_f"),
+                "temp_f": temperature,
                 "timestamp_utc": datetime.now(timezone.utc).timestamp(),
             }
-        except Exception as e:
-            print(f"[ThermalPoller:{self.site_id}] read error: {e}")
+        except (requests.RequestException, ValueError) as exc:
+            self._failure_count += 1
+            if not self._offline:
+                logger.warning("[ThermalPoller:%s] camera offline: %s", self.site_id, exc)
+                self._offline = True
+            elif self._failure_count == 10:
+                logger.warning("[ThermalPoller:%s] still offline after %d attempts", self.site_id, self._failure_count)
             return None
 
     def run(self):
@@ -35,7 +51,8 @@ class ThermalPoller(threading.Thread):
             reading = self._read_spot_temperature()
             if reading:
                 self.callback(self.site_id, reading)
-            time.sleep(self.interval)
+            retry_interval = min(self.interval * (2 ** min(self._failure_count, 5)), 60.0)
+            self._stop.wait(retry_interval)
 
     def stop(self):
         self._stop.set()

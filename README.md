@@ -308,6 +308,15 @@ python main.py
 
 ## QA Protocol
 
+Image exports from FLIR or HAIP BlackBullet Studio can be converted to an auditable CSV. The command scans a directory recursively, records dimensions, channels, pixel statistics, file hash, and a per-image readability QA result:
+
+```powershell
+\.venv\Scripts\python.exe -m src.qa.image_pipeline data\images\flir data\qa\flir.csv --sensor-type flir --site-id site_A
+\.venv\Scripts\python.exe -m src.qa.image_pipeline data\images\blackbullet data\qa\blackbullet.csv --sensor-type blackbullet --site-id site_A
+```
+
+Supported exports are JPEG, PNG, TIFF, and BMP. Put the original FLIR and BlackBullet Studio exports in the respective input directories; unsupported proprietary raw files are reported separately by the camera vendor export tool and are not silently treated as valid images.
+
 Every fused record automatically passes through four checks in `src/qa/qa_protocol.py`:
 
 | Check                          | Method                                                       | Fail condition                                 |

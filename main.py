@@ -98,6 +98,10 @@ def start_pollers(config: dict, engine: FusionEngine) -> list:
         thermal_cfg = site_cfg.get("thermal")
 
         if thermal_cfg:
+            if not thermal_cfg.get("acquisition_enabled", True):
+                logger.info("[%s] Thermal acquisition disabled.", site_id)
+                thermal_cfg = None
+        if thermal_cfg:
             poll_hz = thermal_cfg.get("poll_hz")
             if poll_hz is None:
                 acquisition_interval_s = thermal_cfg.get(
@@ -143,6 +147,10 @@ def start_pollers(config: dict, engine: FusionEngine) -> list:
         hsi_cfg = site_cfg.get("hsi")
 
         if hsi_cfg:
+            if not hsi_cfg.get("acquisition_enabled", True):
+                logger.info("[%s] HSI acquisition disabled.", site_id)
+                hsi_cfg = None
+        if hsi_cfg:
             logger.info(
                 "[%s] Starting HSI poller at %s:%s",
                 site_id,
@@ -158,6 +166,7 @@ def start_pollers(config: dict, engine: FusionEngine) -> list:
                 hsi_cfg["exposure_us"],
                 callback=lambda sid, raw, c=crs:
                     engine.add_hsi(sid, raw, c),
+                interval_s=hsi_cfg.get("acquisition_interval_s", 10.0),
             )
 
             hsi_poller.start()
