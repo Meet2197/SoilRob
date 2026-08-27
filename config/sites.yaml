@@ -4,27 +4,23 @@ sites:
     crs_native: "EPSG:4326"
 
     thermal:
-      ip: "192.168.1.20"
+      ip: "169.254.79.239"
       port: 80
-
+      poll_hz: 1
       acquisition_interval_s: 10
       acquisition_enabled: true
 
       temporary_dir: "data/thermal_temp/site_A"
       evaluation_dir: "data/thermal_evaluation/site_A"
-
       csv_filename: "thermal_evaluation.csv"
 
       qa:
         enabled: true
-
         min_temperature_c: -40
         max_temperature_c: 150
-
         max_missing_fraction: 0.05
         max_jump_c: 15
         max_rate_c_per_s: 5
-
         min_valid_samples: 1
 
     hsi:
