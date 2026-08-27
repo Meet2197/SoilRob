@@ -9,13 +9,6 @@ from src.fusion.fusion_engine import FusionEngine
 from src.adapters.thermal_adapter import ThermalPoller
 from src.adapters.hsi_adapter import HSIPoller
 import src.api.unified_api as unified_api
-from src.thermal.acquisition import (
-    ThermalAcquisitionManager,
-)
-
-from src.hsi.acquisition import (
-    HSIAcquisitionManager,
-)
 
 # ============================================================
 # Paths
@@ -105,6 +98,14 @@ def start_pollers(config: dict, engine: FusionEngine) -> list:
         thermal_cfg = site_cfg.get("thermal")
 
         if thermal_cfg:
+            poll_hz = thermal_cfg.get("poll_hz")
+            if poll_hz is None:
+                acquisition_interval_s = thermal_cfg.get(
+                    "acquisition_interval_s",
+                    1.0,
+                )
+                poll_hz = 1.0 / acquisition_interval_s
+
             logger.info(
                 "[%s] Starting thermal poller at %s:%s",
                 site_id,
@@ -116,7 +117,7 @@ def start_pollers(config: dict, engine: FusionEngine) -> list:
                 site_id,
                 thermal_cfg["ip"],
                 thermal_cfg["port"],
-                thermal_cfg["poll_hz"],
+                poll_hz,
                 callback=lambda sid, raw, c=crs:
                     engine.add_thermal(sid, raw, c),
             )
