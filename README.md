@@ -1,6 +1,6 @@
-# SoilRob — Multi-Sensor Data Fusion Platform
+# Data Fusion — Multi-Sensor Data Fusion Platform
 
-**Thermal (FLIR AX8) + LiDAR (KRONOS) + Hyperspectral (HAIP BlackBullet V2) fusion, QA, cross-site semantic alignment, and unified API for the SoilRob project.**
+**Thermal (FLIR AX8) + LiDAR (KRONOS) + Hyperspectral (HAIP BlackBullet V2) fusion, QA, cross-site semantic alignment, and unified API for the Data Fusion project.**
 
 ---
 
@@ -24,7 +24,7 @@
 
 ## Overview
 
-SoilRob ingests data from three heterogeneous sensor modalities deployed across **three field sites**:
+Data Fusion ingests data from three heterogeneous sensor modalities deployed across **three field sites**:
 
 | Modality               | Hardware            | Interface                        |
 | ---------------------- | ------------------- | -------------------------------- |
@@ -46,7 +46,7 @@ The fusion layer **wraps** the existing adapters rather than replacing them.
 ```mermaid
 flowchart TB
 
-subgraph POOL[Pool: SoilRob Multi-Site Sensor Fusion]
+subgraph POOL[Pool: Data Fusion Multi-Site Sensor Fusion]
 
 subgraph L1[Lane: Inject — Site A/B/C]
   A1([Start: Timer/Trigger]) --> A2[Task: Poll Thermal Cam - FLIR AX8]
@@ -100,7 +100,7 @@ end
 ## Repository Structure
 
 ```
-SoilRob/
+Data Fusion/
 ├── Dockerfile
 ├── README.md                              ← this file
 ├── .gitignore
@@ -144,7 +144,7 @@ SoilRob/
 
 | File           | Purpose                                                                                                  |
 | -------------- | -------------------------------------------------------------------------------------------------------- |
-| `Dockerfile` | Container build definition for deploying the SoilRob backend/platform.                                   |
+| `Dockerfile` | Container build definition for deploying the Data Fusion backend/platform.                                   |
 | `.gitignore` | Excludes virtual environments,`__pycache__`, `.env`, and other build artifacts from version control. |
 | `README.md`  | Project documentation (this file).                                                                       |
 
@@ -154,7 +154,7 @@ SoilRob/
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `FLIR AX.py`     | Core driver/interface for the FLIR AX8 thermal camera — handles connection, spot temperature readings, and image mode switching (Thermal / Thermal MSX). |
 | `MQTT_BRIDGE.py` | Publishes thermal camera readings to an MQTT broker for real-time streaming to other services (e.g., dashboards, the fusion engine).                      |
-| `soil_rob.py`    | SoilRob-specific integration logic tying the FLIR camera into the robot's onboard data pipeline (capture triggers, GPS timestamp matching).               |
+| `soil_rob.py`    | Data Fusion-specific integration logic tying the FLIR camera into the robot's onboard data pipeline (capture triggers, GPS timestamp matching).               |
 
 ### `HAIP_blackbucketV2/` — Hyperspectral camera integration
 
@@ -173,7 +173,7 @@ SoilRob/
 
 | File                 | Purpose                                                                                                |
 | -------------------- | ------------------------------------------------------------------------------------------------------ |
-| `main.py`          | Existing backend API entry point serving SoilRob sensor data prior to the fusion platform integration. |
+| `main.py`          | Existing backend API entry point serving Data Fusion sensor data prior to the fusion platform integration. |
 | `requirements.txt` | Python dependencies for the existing backend service.                                                  |
 
 ### `fusion_platform/` — Fusion, QA, semantic alignment, unified API layer
@@ -207,8 +207,8 @@ SoilRob/
 ### Clone and set up
 
 ```bash
-git clone https://github.com/Meet2197/SoilRob.git
-cd SoilRob
+git clone https://github.com/Meet2197/Data Fusion.git
+cd Data Fusion
 ```
 
 ### Install existing backend dependencies
@@ -360,8 +360,8 @@ Interactive API docs available at `http://localhost:8000/docs` (Swagger UI, auto
 ## Docker Deployment
 
 ```bash
-docker build -t soilrob-platform .
-docker run -p 8000:8000 soilrob-platform
+docker build -t Data Fusion-platform .
+docker run -p 8000:8000 Data Fusion-platform
 ```
 
 > If `fusion_platform` needs to run in the same container as `backend`, update the `Dockerfile` to install both `backend/requirements.txt` and `fusion_platform/requirements.txt`, and set the container `CMD` to launch `fusion_platform/main.py`.
@@ -392,4 +392,4 @@ docker run -p 8000:8000 soilrob-platform
 ---
 
 **Maintainer:** Meet2197
-**Repository:** [github.com/Meet2197/SoilRob](https://github.com/Meet2197/SoilRob)
+**Repository:** [github.com/Meet2197/Data Fusion](https://github.com/Meet2197/Data Fusion)
