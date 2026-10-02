@@ -383,7 +383,9 @@ docker run -p 8000:8000 Data Fusion-platform
 | ---------------------------------------- | ----------------------------------------- | --------------------------------------------------------------- |
 | `python-can not installed - skipping`  | Missing CAN library                       | `pip install python-can`                                      |
 | CAN bus open failed                      | Wrong channel name or interface not up    | On Linux:`sudo ip link set can0 up type can bitrate 250000`   |
-| Thermal poller read errors               | Wrong IP/port or camera unreachable       | Verify FLIR AX8 network config, check`ping <camera_ip>`       |
+| Thermal poller reports HTTP 404           | The camera is reachable, but its API route is not `/api/spot` | Set `thermal.spot_endpoint` and `thermal.temperature_field` in `config/sites.yaml` to the endpoint and JSON field supported by that AX8 firmware. |
+| Thermal poller connection timeout         | Camera IP/port is unreachable from this PC | Verify the camera's current IP, subnet mask, Ethernet/Wi-Fi route, and port 80; a timeout is not fixed by changing the API path. |
+| HSI serial number could not be read       | HSI TCP endpoint did not return its serial response | Verify the configured IP/port 7892 and camera network; the poller now retries serial lookup while running. |
 | `git push` rejected (non-fast-forward) | Remote has commits you don't have locally | `git pull --rebase origin main`, resolve conflicts, then push |
 | Fused records always empty               | Timestamps not within`time_tolerance_s` | Increase tolerance in`sites.yaml` or check sensor clock sync  |
 

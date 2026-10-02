@@ -24,7 +24,7 @@ class HSIPoller(threading.Thread):
         self.exposure_us = exposure_us
         self.callback = callback
         self.interval_s = interval_s
-        self._stop = threading.Event()
+        self._stop_event = threading.Event()
         self._offline = False
         self._failure_count = 0
 
@@ -75,6 +75,44 @@ class HSIPoller(threading.Thread):
             if conn is not None:
                 conn.close()
 
+    @staticmethod
+    def _is_successful_ack_packet(packet: bytes | None) -> bool:
+        if not isinstance(packet, (bytes, bytearray)):
+            return False
+
+        data = bytes(packet)
+        if len(data) < 4:
+            return False
+
+        try:
+            declared_length = struct.unpack('<i', data[:4])[0]
+        except struct.error:
+            return False
+
+        if declared_length > 0 and len(data) >= 4 + declared_length:
+            data = data[4:4 + declared_length]
+
+        if len(data) < 16:
+            return False
+
+        try:
+            sensor, getset, b_code, value1, value2, _ = struct.unpack('<bbhIIi', data[:16])
+        except struct.error:
+            return False
+
+        return sensor in (0, 1) and getset in (0, 1) and b_code in (0, 8)
+
+    def _read_trigger_ack(self, conn: socket.socket, timeout_s: float = 2.0) -> bytes | None:
+        try:
+            conn.settimeout(timeout_s)
+            header = self._recv_exact(conn, 4)
+            declared_length = struct.unpack('<i', header)[0]
+            if declared_length <= 0 or declared_length > 4096:
+                return None
+            return self._recv_exact(conn, declared_length)
+        except (ConnectionError, OSError, socket.timeout, struct.error, ValueError):
+            return None
+
     def _trigger_hsi_image(self, description: str = "") -> bool:
         conn = None
         try:
@@ -83,7 +121,8 @@ class HSIPoller(threading.Thread):
             conn.sendall(message)
             if description:
                 conn.sendall(description.encode())
-            return True
+            ack = self._read_trigger_ack(conn)
+            return self._is_successful_ack_packet(ack)
         except (OSError, ValueError):
             return False
         finally:
@@ -102,8 +141,12 @@ class HSIPoller(threading.Thread):
                 f" (settings={'applied' if settings_applied else 'not applied'})"
             )
 
-        while not self._stop.is_set():
+        while not self._stop_event.is_set():
             description = f"{self.site_id}_{int(time.time())}"
+            if serial is None:
+                serial = self._get_serial_number()
+                if serial is not None:
+                    logger.info("[HSIPoller:%s] serial number recovered: %s", self.site_id, serial)
             if self._trigger_hsi_image(description):
                 self._mark_online()
                 reading = {
@@ -117,7 +160,7 @@ class HSIPoller(threading.Thread):
             else:
                 self._mark_offline("trigger request timed out or was rejected")
             retry_interval = min(self.interval_s * (2 ** min(self._failure_count, 5)), 60.0)
-            self._stop.wait(retry_interval)
+            self._stop_event.wait(retry_interval)
 
     def _mark_offline(self, reason: str) -> None:
         self._failure_count += 1
@@ -134,4 +177,4 @@ class HSIPoller(threading.Thread):
         self._failure_count = 0
 
     def stop(self):
-        self._stop.set()
+        self._stop_event.set()
