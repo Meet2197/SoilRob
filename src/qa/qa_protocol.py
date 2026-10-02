@@ -41,6 +41,82 @@ def check_outlier(record: dict, field: str, history: pd.Series, method="iqr", k=
     return {"check": "outlier", "field": field, "passed": not is_outlier}
 
 
+def check_temperature_bounds(record: dict, qa_config: dict) -> dict:
+    temp = record.get("temperature_c")
+    if temp is None:
+        return {"check": "temperature_bounds", "passed": False, "value": None, "reason": "missing temperature_c"}
+
+    lower = qa_config.get("min_temperature_c")
+    upper = qa_config.get("max_temperature_c")
+    passed = True
+    if lower is not None and temp < lower:
+        passed = False
+    if upper is not None and temp > upper:
+        passed = False
+    return {
+        "check": "temperature_bounds",
+        "passed": passed,
+        "value": temp,
+        "min_temperature_c": lower,
+        "max_temperature_c": upper,
+    }
+
+
+def check_missing_fraction(history: pd.Series, qa_config: dict) -> dict:
+    max_missing_fraction = qa_config.get("max_missing_fraction", 0.05)
+    if history.empty:
+        return {"check": "missing_fraction", "passed": True, "missing_fraction": 0.0}
+    missing = float(history.isna().mean())
+    return {
+        "check": "missing_fraction",
+        "passed": missing <= max_missing_fraction,
+        "missing_fraction": round(missing, 3),
+        "max_missing_fraction": max_missing_fraction,
+    }
+
+
+def check_jump_limit(record: dict, history: pd.Series, qa_config: dict) -> dict:
+    max_jump_c = qa_config.get("max_jump_c")
+    current = record.get("temperature_c")
+    if max_jump_c is None or current is None or history.empty:
+        return {"check": "jump_limit", "passed": True, "max_jump_c": max_jump_c}
+    last_valid = history.dropna().iloc[-1] if not history.dropna().empty else None
+    if last_valid is None:
+        return {"check": "jump_limit", "passed": True, "max_jump_c": max_jump_c}
+    delta = abs(float(current) - float(last_valid))
+    return {
+        "check": "jump_limit",
+        "passed": delta <= max_jump_c,
+        "delta_c": round(delta, 3),
+        "max_jump_c": max_jump_c,
+    }
+
+
+def check_rate_limit(record: dict, history: pd.Series, qa_config: dict) -> dict:
+    max_rate_c_per_s = qa_config.get("max_rate_c_per_s")
+    current = record.get("temperature_c")
+    current_ts = record.get("timestamp_utc")
+    if max_rate_c_per_s is None or current is None or current_ts is None or history.empty:
+        return {"check": "rate_limit", "passed": True, "max_rate_c_per_s": max_rate_c_per_s}
+    recent = history.dropna()
+    if recent.empty:
+        return {"check": "rate_limit", "passed": True, "max_rate_c_per_s": max_rate_c_per_s}
+    last_temp = float(recent.iloc[-1])
+    last_ts = record.get("last_timestamp_utc") or (history.index[-1] if hasattr(history, 'index') else None)
+    if last_ts is None:
+        return {"check": "rate_limit", "passed": True, "max_rate_c_per_s": max_rate_c_per_s}
+    dt = float(current_ts) - float(last_ts)
+    if dt <= 0 or not pd.notnull(dt):
+        return {"check": "rate_limit", "passed": True, "max_rate_c_per_s": max_rate_c_per_s}
+    rate = abs(float(current) - last_temp) / dt
+    return {
+        "check": "rate_limit",
+        "passed": rate <= max_rate_c_per_s,
+        "rate_c_per_s": round(rate, 3),
+        "max_rate_c_per_s": max_rate_c_per_s,
+    }
+
+
 def validate_crs(crs_str: str, expected: str = "EPSG:4326") -> dict:
     try:
         actual = CRS.from_user_input(crs_str)
@@ -61,18 +137,25 @@ def check_temporal_consistency(last_ts: float | None, current_ts: float, max_gap
 
 def run_qa_pipeline(record: dict, history: pd.DataFrame, config: dict, last_ts: float | None,
                      required_fields: list[str], numeric_field: str) -> dict:
-    """Runs all four QA checks and returns a structured report + overall pass/fail."""
-    qa_config = config.get("qa", {})
-    if not qa_config:
-        qa_config = config.get("sites", {}).get(record.get("site_id"), {}).get("thermal", {}).get("qa", {})
+    """Runs all QA checks and returns a structured report + overall pass/fail."""
+    site_cfg = config.get("sites", {}).get(record.get("site_id"), {})
+    qa_config = config.get("qa", {}) if config.get("qa") else site_cfg.get("thermal", {}).get("qa", {})
+    if not qa_config and record.get("sensor_type") == "fused_thermal_hsi":
+        qa_config = site_cfg.get("thermal", {}).get("qa", {})
+
+    history_series = history[numeric_field] if numeric_field in history.columns else pd.Series(dtype=float)
     results = []
     results.append(check_completeness(record, required_fields))
+    results.append(check_temperature_bounds(record, qa_config))
+    results.append(check_missing_fraction(history_series, qa_config))
+    results.append(check_jump_limit(record, history_series, qa_config))
+    results.append(check_rate_limit(record, history_series, qa_config))
     results.append(check_outlier(
         record, numeric_field,
-        history[numeric_field] if numeric_field in history else pd.Series(dtype=float),
+        history_series,
         method=qa_config.get("outlier_method", "iqr"), k=qa_config.get("outlier_k", 1.5)
     ))
-    expected_crs = qa_config.get("expected_crs", config.get("sites", {}).get(record.get("site_id"), {}).get("crs_native", "EPSG:4326"))
+    expected_crs = qa_config.get("expected_crs", site_cfg.get("crs_native", "EPSG:4326"))
     results.append(validate_crs(record.get("crs", "EPSG:4326"), expected_crs))
     results.append(check_temporal_consistency(
         last_ts, record.get("timestamp_utc"), qa_config.get("max_temporal_gap_s", 10.0)

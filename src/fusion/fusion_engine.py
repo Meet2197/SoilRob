@@ -1,5 +1,7 @@
+import json
 import threading
 from collections import deque
+from pathlib import Path
 import pandas as pd
 from src.qa.qa_protocol import run_qa_pipeline
 from src.semantic.alignment import harmonize
@@ -23,13 +25,31 @@ class FusionEngine:
             store[site_id] = deque(maxlen=self.config["fusion"]["buffer_size"])
         return store[site_id]
 
+    def _sensor_dirs(self, site_id: str, sensor_type: str) -> tuple[Path, Path]:
+        site_cfg = self.config.get("sites", {}).get(site_id, {})
+        sensor_cfg = site_cfg.get(sensor_type, {})
+        temp_dir = Path(sensor_cfg.get("temporary_dir", f"data/{sensor_type}_temp/{site_id}"))
+        eval_dir = Path(sensor_cfg.get("evaluation_dir", f"data/{sensor_type}_evaluation/{site_id}"))
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        eval_dir.mkdir(parents=True, exist_ok=True)
+        return temp_dir, eval_dir
+
+    def _persist_raw_record(self, site_id: str, sensor_type: str, raw: dict) -> None:
+        temp_dir, _ = self._sensor_dirs(site_id, sensor_type)
+        timestamp = raw.get("timestamp_utc") or 0.0
+        filename = f"{sensor_type}_{int(float(timestamp) * 1000)}.json"
+        with (temp_dir / filename).open("w", encoding="utf-8") as handle:
+            json.dump(raw, handle, sort_keys=True, indent=2)
+
     def add_thermal(self, site_id: str, raw: dict, crs: str = "EPSG:4326"):
+        self._persist_raw_record(site_id, "thermal", raw)
         rec = harmonize(raw, site_id, "thermal", crs)
         with self.lock:
             self._buf(self.thermal_buffer, site_id).append(rec)
             self._try_fuse(site_id)
 
     def add_hsi(self, site_id: str, raw: dict, crs: str = "EPSG:4326"):
+        self._persist_raw_record(site_id, "hsi", raw)
         rec = harmonize(raw, site_id, "hsi", crs)
         with self.lock:
             self._buf(self.hsi_buffer, site_id).append(rec)
