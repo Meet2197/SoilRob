@@ -1,8 +1,11 @@
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
 
 from src.fusion.fusion_engine import FusionEngine
+from src.ui.haip_dashboard import scheduler
 
 
 # ============================================================
@@ -78,6 +81,61 @@ def json_safe(value: Any) -> Any:
         ]
 
     return value
+
+
+# ============================================================
+# HAIP-style UI + image scheduling
+# ============================================================
+
+UI_PATH = Path(__file__).resolve().parents[2] / "ui" / "haip_dashboard.html"
+
+
+@app.get("/ui/haip", response_class=FileResponse)
+def haip_ui():
+    if not UI_PATH.exists():
+        raise HTTPException(status_code=404, detail="HAIP UI not found")
+    return FileResponse(UI_PATH)
+
+
+@app.post("/api/haip/schedule")
+def start_haip_schedule(payload: dict):
+    site_id = str(payload.get("site_id", "site_A"))
+    mode = str(payload.get("capture_mode", "snapshot"))
+    interval_s = float(payload.get("interval_s", 30.0))
+    exposure_us = int(payload.get("exposure_us", 7000))
+    gain = float(payload.get("gain", 10.0))
+    scheduler.start(site_id=site_id, mode=mode, interval_s=interval_s, exposure_us=exposure_us, gain=gain)
+    return {
+        "status": "ok",
+        "site_id": site_id,
+        "capture_mode": mode,
+        "interval_s": interval_s,
+        "exposure_us": exposure_us,
+        "gain": gain,
+    }
+
+
+@app.post("/api/haip/stop")
+def stop_haip_schedule(payload: dict | None = None):
+    site_id = str((payload or {}).get("site_id", "site_A"))
+    mode = str((payload or {}).get("capture_mode", "snapshot"))
+    scheduler.stop(site_id=site_id, mode=mode)
+    return {"status": "stopped", "site_id": site_id, "capture_mode": mode}
+
+
+@app.get("/api/haip/latest")
+def latest_haip_images():
+    return {"status": "ok", "images": scheduler.latest_images()}
+
+
+@app.post("/api/fusion/synchronize/{site_id}")
+def synchronize_stored_data(site_id: str):
+    active_engine = get_engine()
+    try:
+        result = active_engine.synchronize_stored_data(site_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"status": "ok", **result}
 
 
 # ============================================================

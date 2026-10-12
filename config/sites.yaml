@@ -97,6 +97,7 @@ sites:
 fusion:
   time_tolerance_s: 1.0
   buffer_size: 5000
+  archive_dir: "data/fused_archive"
 
 
 api:

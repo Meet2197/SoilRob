@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HAIP Scheduler</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #2a2a2a;
+      color: #f0f0f0;
+    }
+    .panel {
+      max-width: 760px;
+      margin: 20px auto;
+      background: #393939;
+      border: 1px solid #5e5e5e;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .tabs {
+      display: flex;
+      background: #4b4b4b;
+      border-bottom: 1px solid #666;
+    }
+    .tab {
+      flex: 1;
+      padding: 12px 16px;
+      text-align: center;
+      cursor: pointer;
+      border: none;
+      color: #f3f3f3;
+      background: transparent;
+      font-size: 15px;
+    }
+    .tab.active {
+      background: #5d5d5d;
+      border-bottom: 2px solid #9ad0ff;
+    }
+    .content {
+      padding: 18px 20px 24px;
+    }
+    .settings {
+      display: grid;
+      grid-template-columns: 1fr 180px;
+      gap: 12px 18px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    .settings label {
+      font-size: 14px;
+      color: #e5e5e5;
+    }
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    input, select, button {
+      font-size: 14px;
+      padding: 8px 10px;
+      border-radius: 4px;
+      border: 1px solid #777;
+      background: #2f2f2f;
+      color: #fff;
+    }
+    .value-box {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .schedule-box {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 10px;
+    }
+    .schedule-box .card {
+      background: #2d2d2d;
+      border: 1px solid #666;
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+    .countdown {
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      color: #bfe7ff;
+      margin-top: 10px;
+    }
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    button {
+      cursor: pointer;
+      background: #4a4a4a;
+      color: #f0f0f0;
+      min-width: 120px;
+    }
+    button.primary {
+      background: #5c8dff;
+      border-color: #84abff;
+    }
+    .meta {
+      font-size: 12px;
+      color: #b5d9ff;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="tabs">
+      <button class="tab active" type="button" data-mode="snapshot">Snapshot</button>
+      <button class="tab" type="button" data-mode="line_scan">Line scan</button>
+      <button class="tab" type="button" data-mode="hsi_livestream">HSI Livestream</button>
+    </div>
+    <div class="content">
+      <div class="settings">
+        <label>Exposure</label>
+        <div class="input-row">
+          <input id="exposure" class="value-box" type="number" value="7000" min="100" max="100000" />
+          <span>µs</span>
+        </div>
+
+        <label>Analog Gain</label>
+        <div class="input-row">
+          <input id="gain" class="value-box" type="number" step="0.1" value="10" min="0.1" max="15.5" />
+          <span>x</span>
+        </div>
+      </div>
+
+      <div class="schedule-box">
+        <div class="card">
+          <label>Time</label><br />
+          <input id="interval" type="number" value="30" min="1" max="9999" />
+        </div>
+        <div class="card">
+          <label>Loop</label><br />
+          <input id="loop" type="checkbox" checked />
+        </div>
+      </div>
+
+      <div class="countdown" id="countdown">00:00:00</div>
+
+      <div class="buttons">
+        <button class="primary" id="start-btn" type="button">Start scheduler</button>
+        <button id="stop-btn" type="button">Stop scheduler</button>
+      </div>
+
+      <div class="meta" id="status">Idle</div>
+    </div>
+  </div>
+
+  <script>
+    const tabs = document.querySelectorAll('.tab');
+    let selectedMode = 'snapshot';
+    let countdownTimer = null;
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        selectedMode = tab.dataset.mode;
+        document.getElementById('status').textContent = `Selected mode: ${selectedMode}`;
+      });
+    });
+
+    function updateCountdown(seconds) {
+      const total = Math.max(0, seconds);
+      const h = String(Math.floor(total / 3600)).padStart(2, '0');
+      const m = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+      const s = String(total % 60).padStart(2, '0');
+      document.getElementById('countdown').textContent = `${h}:${m}:${s}`;
+    }
+
+    async function startScheduler() {
+      const body = {
+        site_id: 'site_A',
+        capture_mode: selectedMode,
+        exposure_us: Number(document.getElementById('exposure').value || 7000),
+        gain: Number(document.getElementById('gain').value || 10),
+        interval_s: Number(document.getElementById('interval').value || 30),
+        loop: document.getElementById('loop').checked
+      };
+      const response = await fetch('/api/haip/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const json = await response.json();
+      document.getElementById('status').textContent = JSON.stringify(json);
+      if (json.interval_s) {
+        let remaining = json.interval_s;
+        clearInterval(countdownTimer);
+        countdownTimer = setInterval(() => {
+          remaining = Math.max(0, remaining - 1);
+          updateCountdown(remaining);
+          if (remaining <= 0) {
+            clearInterval(countdownTimer);
+            updateCountdown(0);
+          }
+        }, 1000);
+      }
+    }
+
+    async function stopScheduler() {
+      const response = await fetch('/api/haip/stop', { method: 'POST' });
+      const json = await response.json();
+      clearInterval(countdownTimer);
+      updateCountdown(0);
+      document.getElementById('status').textContent = JSON.stringify(json);
+    }
+
+    document.getElementById('start-btn').addEventListener('click', startScheduler);
+    document.getElementById('stop-btn').addEventListener('click', stopScheduler);
+    updateCountdown(0);
+  </script>
+</body>
+</html>
