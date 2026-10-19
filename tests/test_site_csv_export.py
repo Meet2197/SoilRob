@@ -26,6 +26,7 @@ class SiteCsvExportTests(unittest.TestCase):
             site_dir = base / "data" / "thermal_temp" / "site_A"
             site_dir.mkdir(parents=True, exist_ok=True)
             (site_dir / "thermal_1.json").write_text(json.dumps({"timestamp_utc": 100.0, "record_id": "site_A_1", "temp_f": 99.0}), encoding="utf-8")
+            (site_dir / "thermal_2.json").write_text(json.dumps({"timestamp_utc": 101.0, "record_id": "site_A_2", "thermal_temperature": 42.0}), encoding="utf-8")
 
             engine = FusionEngine(config)
             engine._sensor_dirs = lambda site_id, sensor_type: (site_dir, base / "data" / "thermal_evaluation" / site_id)
@@ -36,6 +37,7 @@ class SiteCsvExportTests(unittest.TestCase):
             text = csv_path.read_text(encoding="utf-8")
             self.assertIn("qa_pass", text)
             self.assertIn("site_A", text)
+            self.assertIn("42.0", text)
 
 
 if __name__ == "__main__":

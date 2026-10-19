@@ -55,10 +55,14 @@ class FusionEngine:
                 continue
 
             timestamp = raw.get("timestamp_utc")
-            if raw.get("temperature_c") is None and raw.get("temp_f") is not None:
+            if raw.get("temperature_c") is not None:
+                temp_value = float(raw["temperature_c"])
+            elif raw.get("thermal_temperature") is not None:
+                temp_value = float(raw["thermal_temperature"])
+            elif raw.get("temp_f") is not None:
                 temp_value = (float(raw["temp_f"]) - 32.0) * 5.0 / 9.0
             else:
-                temp_value = raw.get("temperature_c")
+                temp_value = None
             qa_cfg = self.config.get("sites", {}).get(site_id, {}).get(sensor_type, {}).get("qa", {})
             if not qa_cfg:
                 qa_cfg = self.config.get("qa", {})
@@ -162,7 +166,16 @@ class FusionEngine:
             hsi = harmonize(hsi_raw, site_id, "hsi", crs)
             fused = {
                 **hsi,
-                "temperature_c": thermal["temperature_c"],
+                **{
+                    field: thermal[field]
+                    for field in (
+                        "temperature_c",
+                        "thermal_min_c",
+                        "thermal_max_c",
+                        "thermal_avg_c",
+                    )
+                    if thermal[field] is not None
+                },
                 "sensor_type": "fused_thermal_hsi",
                 "record_id": f"{site_id}_fused_{hsi_timestamp:.6f}",
                 "source_records": {"thermal": thermal_id, "hsi": hsi_id},
@@ -198,7 +211,19 @@ class FusionEngine:
         t = t_buf[-1]
         h = h_buf[-1]
         if abs(t["timestamp_utc"] - h["timestamp_utc"]) <= self.tolerance_s:
-            fused = {**h, **{k: v for k, v in t.items() if k in ("temperature_c",)}}
+            fused = {
+                **h,
+                **{
+                    key: value
+                    for key, value in t.items()
+                    if key in (
+                        "temperature_c",
+                        "thermal_min_c",
+                        "thermal_max_c",
+                        "thermal_avg_c",
+                    )
+                },
+            }
             fused["sensor_type"] = "fused_thermal_hsi"
             fused["record_id"] = f"{site_id}_fused_{fused['timestamp_utc']}"
             self._qa_and_store(site_id, fused)

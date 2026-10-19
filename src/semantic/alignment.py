@@ -9,6 +9,7 @@ CANONICAL_SCHEMA = [
     "record_id", "site_id", "sensor_type", "timestamp_utc",
     "temperature_c", "hsi_gain", "hsi_exposure_us",
     "hsi_serial_number", "hsi_image_path",
+    "thermal_min_c", "thermal_max_c", "thermal_avg_c",
     "latitude", "longitude", "elevation_m", "crs",
 ]
 
@@ -16,6 +17,10 @@ CANONICAL_SCHEMA = [
 SITE_FIELD_MAP = {
     "site_A": {
         "temp_f": "temperature_c",
+        "thermal_temperature": "temperature_c",
+        "box1_min_c": "thermal_min_c",
+        "box1_max_c": "thermal_max_c",
+        "box1_avg_c": "thermal_avg_c",
         "gain": "hsi_gain",
         "exposure_us": "hsi_exposure_us",
         "serial_number": "hsi_serial_number",
@@ -24,6 +29,9 @@ SITE_FIELD_MAP = {
     "site_B": {
         "temp_f": "temperature_c",
         "thermal_temperature": "temperature_c",   # already Celsius
+        "box1_min_c": "thermal_min_c",
+        "box1_max_c": "thermal_max_c",
+        "box1_avg_c": "thermal_avg_c",
         "gain": "hsi_gain",
         "exposure_us": "hsi_exposure_us",
         "serial_number": "hsi_serial_number",
@@ -32,6 +40,10 @@ SITE_FIELD_MAP = {
     "site_C": {
         "temp_f": "temperature_c",
         "cam_temp_k": "temperature_c",            # Kelvin -> Celsius
+        "thermal_temperature": "temperature_c",
+        "box1_min_c": "thermal_min_c",
+        "box1_max_c": "thermal_max_c",
+        "box1_avg_c": "thermal_avg_c",
         "gain": "hsi_gain",
         "exposure_us": "hsi_exposure_us",
         "serial_number": "hsi_serial_number",

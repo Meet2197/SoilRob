@@ -16,7 +16,14 @@ class StoredFusionTests(unittest.TestCase):
             hsi_dir.mkdir()
 
             thermal_records = [
-                {"timestamp_utc": 100.0, "record_id": "thermal-100", "temp_f": 68.0},
+                {
+                    "timestamp_utc": 100.0,
+                    "record_id": "thermal-100",
+                    "temp_f": 68.0,
+                    "box1_min_c": 18.0,
+                    "box1_max_c": 22.0,
+                    "box1_avg_c": 20.0,
+                },
                 {"timestamp_utc": 101.0, "record_id": "thermal-101", "temp_f": 86.0},
             ]
             hsi_records = [
@@ -54,6 +61,9 @@ class StoredFusionTests(unittest.TestCase):
             with Path(result["output_file"]).open(encoding="utf-8") as handle:
                 fused = json.load(handle)
             self.assertEqual([record["temperature_c"] for record in fused], [20.0, 30.0])
+            self.assertEqual(fused[0]["thermal_min_c"], 18.0)
+            self.assertEqual(fused[0]["thermal_max_c"], 22.0)
+            self.assertEqual(fused[0]["thermal_avg_c"], 20.0)
             self.assertEqual(fused[0]["source_records"], {"thermal": "thermal-100", "hsi": "hsi-99"})
             self.assertEqual(fused[0]["hsi_serial_number"], "BB-1")
 

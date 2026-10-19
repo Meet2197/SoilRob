@@ -185,7 +185,7 @@ Data Fusion/
 | `config/sites.yaml`               | Central configuration: per-site IPs/CAN channels, native CRS, fusion time tolerance, QA thresholds, and API host/port.                                                                                                                      |
 | `.vscode/launch.json`             | VS Code debug configuration — press`F5` to run `main.py` directly.                                                                                                                                                                     |
 | `.vscode/settings.json`           | VS Code workspace settings (Python analysis paths,`PYTHONPATH`).                                                                                                                                                                          |
-| `src/adapters/thermal_adapter.py` | Threaded poller that reads thermal data (wraps/calls into`FLIR/soil_rob.py` or `FLIR/FLIR AX.py`) and forwards readings to the fusion engine.                                                                                           |
+| `src/adapters/thermal_adapter.py` | Threaded FLIR AX8 poller supporting HTTP spot readings or optional Modbus TCP float32 temperature readings; forwards sensor data to the fusion engine. |
 | `src/adapters/lidar_adapter.py`   | Threaded poller that reads LiDAR CAN status frames (wraps/calls into`KRONOS_LiDAR/kronos_lidar.py`) and decodes them per the datasheet protocol.                                                                                          |
 | `src/adapters/hsi_adapter.py`     | Adapter wrapping`HAIP_blackbucketV2/Black_Bucket.py` for hyperspectral image triggering and ingestion into the fusion pipeline.                                                                                                           |
 | `src/qa/qa_protocol.py`           | Automated QA checks:**completeness**, **outlier detection** (IQR/z-score), **CRS validation**, **temporal consistency**. Runs automatically on every fused record.                                                  |
@@ -199,44 +199,35 @@ Data Fusion/
 
 ### Prerequisites
 
-- Python 3.9+
+- Python 3.10+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - Git
-- (Optional, for LiDAR) SocketCAN-compatible interface/driver on Linux, or a CAN-USB adapter with appropriate driver on Windows
 - VS Code (recommended)
 
-### Clone and set up
+### Set up with uv
+
+From the repository root, install the project dependencies and create the `.venv` environment:
 
 ```bash
-git clone https://github.com/Meet2197/Data Fusion.git
-cd Data Fusion
+uv sync
 ```
 
-### Install existing backend dependencies
+To run a command in the managed environment without activating it:
 
 ```bash
-cd backend
-pip install -r requirements.txt
-cd ..
+uv run python main.py
 ```
 
-### Install fusion platform dependencies
-
-```bash
-cd fusion_platform
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# macOS/Linux:
-source .venv/bin/activate
-
-pip install -r requirements.txt
-```
+The project dependencies are declared in `pyproject.toml`; `uv sync` creates or updates `uv.lock`
+with the resolved versions.
+The `.devcontainer/devcontainer.json` configuration can also open the project in a container with
+uv and the Python/Pylance extensions ready to use.
 
 ---
 
 ## Configuration
 
-Edit `fusion_platform/config/sites.yaml` to match your real deployment:
+Edit `config/sites.yaml` to match your real deployment:
 
 ```yaml
 sites:
@@ -246,6 +237,10 @@ sites:
       ip: "192.168.1.20"
       port: 80
       poll_hz: 1
+      # For Modbus TCP instead of HTTP:
+      # protocol: "modbus_tcp"  # change port above to 502
+      # modbus_register_address: 1018
+      # modbus_unit_id: 1
     lidar:
       can_channel: "can0"
       bitrate: 250000
@@ -271,22 +266,28 @@ api:
 
 > Update the IP addresses to match your FLIR AX8 network configuration, and the CAN channel names to match your actual SocketCAN/USB-CAN interfaces per site.
 
+Thermal polling uses HTTP by default. To use the AX8 Modbus TCP interface, set
+`thermal.protocol` to `modbus_tcp` and `thermal.port` to `502`. The poller reads eight
+holding registers starting at `modbus_register_address` (default `1018`), decodes the
+spot/minimum/maximum/average float32 temperatures, and sends them through the same fusion
+pipeline. Use `modbus_unit_id` to override the default unit ID (`1`). The Modbus path
+requires the project dependencies installed with `uv sync`.
+
 ---
 
 ## Running the Platform
 
 ### Option 1 — VS Code (recommended)
 
-1. Open the `fusion_platform/` folder in VS Code.
-2. Select the `.venv` interpreter (`Ctrl+Shift+P` → *Python: Select Interpreter*).
+1. Open the repository root in VS Code (or reopen it in the Dev Container).
+2. The workspace uses the `.venv` interpreter created by `uv sync`.
 3. Press **F5** (uses `.vscode/launch.json`).
 4. The unified API starts at `http://localhost:8000`.
 
 ### Option 2 — Command line
 
 ```bash
-cd fusion_platform
-python main.py
+uv run python main.py
 ```
 
 ### Verify it's running
@@ -388,6 +389,7 @@ docker run -p 8000:8000 Data Fusion-platform
 | CAN bus open failed                      | Wrong channel name or interface not up    | On Linux:`sudo ip link set can0 up type can bitrate 250000`   |
 | Thermal poller reports HTTP 404           | The camera is reachable, but its API route is not `/api/spot` | Set `thermal.spot_endpoint` and `thermal.temperature_field` in `config/sites.yaml` to the endpoint and JSON field supported by that AX8 firmware. |
 | Thermal poller connection timeout         | Camera IP/port is unreachable from this PC | Verify the camera's current IP, subnet mask, Ethernet/Wi-Fi route, and port 80; a timeout is not fixed by changing the API path. |
+| Thermal poller reports a Modbus request failure | Modbus TCP connection, register read, or response failed | Confirm `protocol: modbus_tcp`, the camera IP, port 502, register address, and unit ID; install dependencies with `uv sync`. |
 | HSI serial number could not be read       | HSI TCP endpoint did not return its serial response | Verify the configured IP/port 7892 and camera network; the poller now retries serial lookup while running. |
 | `git push` rejected (non-fast-forward) | Remote has commits you don't have locally | `git pull --rebase origin main`, resolve conflicts, then push |
 | Fused records always empty               | Timestamps not within`time_tolerance_s` | Increase tolerance in`sites.yaml` or check sensor clock sync  |

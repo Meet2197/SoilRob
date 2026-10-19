@@ -127,6 +127,11 @@ def start_pollers(config: dict, engine: FusionEngine) -> list:
                 endpoint=thermal_cfg.get("spot_endpoint", "/api/spot"),
                 temperature_field=thermal_cfg.get("temperature_field", "spot_temp_f"),
                 timeout_s=thermal_cfg.get("request_timeout_s", 2.0),
+                protocol=thermal_cfg.get("protocol", "http"),
+                modbus_register_address=thermal_cfg.get(
+                    "modbus_register_address", 1018
+                ),
+                modbus_unit_id=thermal_cfg.get("modbus_unit_id", 1),
             )
 
             thermal_poller.start()

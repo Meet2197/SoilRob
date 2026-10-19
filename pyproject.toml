@@ -1,0 +1,21 @@
+[project]
+name = "soilrob"
+version = "0.1.0"
+description = "Multi-sensor data fusion platform"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "pydantic",
+    "pandas",
+    "numpy",
+    "pyproj",
+    "pyyaml",
+    "requests",
+    "matplotlib",
+    "pillow",
+    "pymodbus",
+]
+
+[tool.uv]
+package = false
