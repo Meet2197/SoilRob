@@ -1,6 +1,5 @@
 from pathlib import Path
 import logging
-import signal
 import sys
 import uvicorn
 import yaml

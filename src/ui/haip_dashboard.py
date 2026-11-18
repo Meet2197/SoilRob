@@ -21,8 +21,14 @@ class HSIImageScheduler:
         out_dir.mkdir(parents=True, exist_ok=True)
         return out_dir
 
+    def _output_image_dir(self, site_id: str, mode: str) -> Path:
+        out_dir = self.base_dir / "output" / site_id / mode
+        out_dir.mkdir(parents=True, exist_ok=True)
+        return out_dir
+
     def generate_image(self, site_id: str, mode: str, exposure_us: int = 7000, gain: float = 10.0) -> str:
         out_dir = self._image_dir(site_id, mode)
+        output_dir = self._output_image_dir(site_id, mode)
         timestamp = int(time.time() * 1000)
         image = Image.new("RGB", (1200, 600), (15, 15, 20))
         draw = ImageDraw.Draw(image)
@@ -58,6 +64,7 @@ class HSIImageScheduler:
 
         path = out_dir / f"{mode}_{timestamp}.png"
         image.save(path)
+        image.save(output_dir / path.name)
         self._last_images[f"{site_id}:{mode}"] = str(path)
         return str(path)
 

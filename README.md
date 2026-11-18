@@ -273,6 +273,10 @@ spot/minimum/maximum/average float32 temperatures, and sends them through the sa
 pipeline. Use `modbus_unit_id` to override the default unit ID (`1`). The Modbus path
 requires the project dependencies installed with `uv sync`.
 
+HAIP dashboard preview images are saved under both `data/haip_ui/<site>/<mode>/` and
+`output/<site>/<mode>/`. These are generated preview images, not captured images from the
+physical camera.
+
 ---
 
 ## Running the Platform
