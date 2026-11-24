@@ -318,6 +318,7 @@ Image exports from FLIR or HAIP BlackBullet Studio can be converted to an audita
 ```powershell
 \.venv\Scripts\python.exe -m src.qa.image_pipeline data\images\flir data\qa\flir.csv --sensor-type flir --site-id site_A
 \.venv\Scripts\python.exe -m src.qa.image_pipeline data\images\blackbullet data\qa\blackbullet.csv --sensor-type blackbullet --site-id site_A
+\.venv\Scripts\python.exe -m src.qa.image_pipeline data\haip_ui\site_A data\qa\hsi_site_A.csv --sensor-type hsi --site-id site_A
 ```
 
 Supported exports are JPEG, PNG, TIFF, and BMP. Put the original FLIR and BlackBullet Studio exports in the respective input directories; unsupported proprietary raw files are reported separately by the camera vendor export tool and are not silently treated as valid images.
@@ -353,6 +354,26 @@ Unit conversions handled automatically:
 - Millimeters → Centimeters
 
 Each site's native sampling protocol (acquisition mode, frequency) is documented in `SAMPLING_PROTOCOLS` for provenance/traceability.
+
+---
+
+## Data Storage Locations
+
+All storage paths below are relative to the project root. The locations can be changed in `config/sites.yaml`, except for HSI fallback storage and dashboard preview output, which are defined by the application.
+
+| Data | Storage location |
+| --- | --- |
+| Raw thermal sensor records | `data/thermal_temp/<site_id>/` |
+| Raw HSI sensor records | `data/hsi_temp/<site_id>/` |
+| Thermal QA export CSV | `data/thermal_evaluation/<site_id>/` |
+| Synchronized thermal and HSI records | `data/fused_archive/<site_id>/fused_records.json` |
+| Tabular synchronized thermal and HSI records | `data/fused_archive/<site_id>/fused_records.csv` |
+| HSI dashboard preview images | `data/haip_ui/<site_id>/<mode>/` |
+| HSI dashboard output images | `output/<site_id>/<mode>/` |
+
+Thermal and HSI records use the `temporary_dir` configured for each sensor and site in `config/sites.yaml`.
+
+The synchronized archive is produced by `POST /api/fusion/synchronize/{site_id}`. The project pairs each thermal record once with an HSI record whose timestamp is within `fusion.time_tolerance_s` (default: 1 second), then writes the result to `fusion.archive_dir/<site_id>/fused_records.json` and `fusion.archive_dir/<site_id>/fused_records.csv`. The configured archive root is `data/fused_archive` in `config/sites.yaml`.
 
 ---
 

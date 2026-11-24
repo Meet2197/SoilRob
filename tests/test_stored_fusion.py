@@ -58,6 +58,11 @@ class StoredFusionTests(unittest.TestCase):
             self.assertEqual(result["unmatched_thermal_count"], 0)
             self.assertEqual(result["unmatched_hsi_count"], 0)
             self.assertTrue(Path(result["output_dir"]).is_dir())
+            csv_path = Path(result["csv_file"])
+            self.assertTrue(csv_path.is_file())
+            csv_text = csv_path.read_text(encoding="utf-8")
+            self.assertIn("sensor_type", csv_text)
+            self.assertIn("fused_thermal_hsi", csv_text)
             with Path(result["output_file"]).open(encoding="utf-8") as handle:
                 fused = json.load(handle)
             self.assertEqual([record["temperature_c"] for record in fused], [20.0, 30.0])

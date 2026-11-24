@@ -1,0 +1,2 @@
+sensor_type,exposure_us,gain,timestamp_utc
+hsi,10000,1.0,125.0

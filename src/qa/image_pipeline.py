@@ -94,7 +94,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image_dir", type=Path)
     parser.add_argument("csv_path", type=Path)
-    parser.add_argument("--sensor-type", required=True, choices=("flir", "blackbullet"))
+    parser.add_argument("--sensor-type", required=True, choices=("flir", "blackbullet", "hsi"))
     parser.add_argument("--site-id", required=True)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")

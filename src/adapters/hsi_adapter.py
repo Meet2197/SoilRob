@@ -84,6 +84,22 @@ class HSIPoller(threading.Thread):
         if len(data) < 4:
             return False
 
+        # HAIP firmware may return a direct 16-byte packet.
+        if len(data) >= 16:
+            try:
+                sensor, getset, b_code, value1, value2, _ = struct.unpack(
+                    '<bbhIIi', data[:16]
+                )
+            except struct.error:
+                pass
+            else:
+                if (
+                    sensor in (0, 1)
+                    and getset in (0, 1)
+                    and b_code in (0, 8, 2048)
+                ):
+                    return True
+
         try:
             declared_length = struct.unpack('<i', data[:4])[0]
         except struct.error:
@@ -102,14 +118,24 @@ class HSIPoller(threading.Thread):
 
         return sensor in (0, 1) and getset in (0, 1) and b_code in (0, 8)
 
-    def _read_trigger_ack(self, conn: socket.socket, timeout_s: float = 2.0) -> bytes | None:
+    def _read_trigger_ack(self, conn: socket.socket, timeout_s: float = 10.0) -> bytes | None:
         try:
             conn.settimeout(timeout_s)
-            header = self._recv_exact(conn, 4)
-            declared_length = struct.unpack('<i', header)[0]
-            if declared_length <= 0 or declared_length > 4096:
-                return None
-            return self._recv_exact(conn, declared_length)
+            first_bytes = self._recv_exact(conn, 16)
+
+            # HAIP cameras return a direct 16-byte ACK packet.
+            if len(first_bytes) == 16:
+                declared_length = struct.unpack('<i', first_bytes[:4])[0]
+                if self._is_successful_ack_packet(first_bytes):
+                    return first_bytes
+
+                # Some firmware/build combinations prefix the 16-byte packet
+                # with a declared payload length.
+                if 0 < declared_length <= 4096:
+                    return first_bytes[4:] + self._recv_exact(
+                        conn, declared_length - 12
+                    )
+            return None
         except (ConnectionError, OSError, socket.timeout, struct.error, ValueError):
             return None
 

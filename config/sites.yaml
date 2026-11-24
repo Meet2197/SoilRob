@@ -30,6 +30,8 @@ sites:
       acquisition_enabled: true
       gain: 1.0
       exposure_us: 10000
+      temporary_dir: "data/hsi_temp/site_A"
+      evaluation_dir: "data/hsi_evaluation/site_A"
 
 
   site_B:
@@ -61,6 +63,8 @@ sites:
       acquisition_enabled: true
       gain: 1.0
       exposure_us: 10000
+      temporary_dir: "data/hsi_temp/site_B"
+      evaluation_dir: "data/hsi_evaluation/site_B"
 
 
   site_C:
@@ -92,6 +96,8 @@ sites:
       acquisition_enabled: true
       gain: 1.0
       exposure_us: 10000
+      temporary_dir: "data/hsi_temp/site_C"
+      evaluation_dir: "data/hsi_evaluation/site_C"
 
 
 fusion:

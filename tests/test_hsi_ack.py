@@ -5,6 +5,14 @@ from src.adapters.hsi_adapter import HSIPoller
 
 
 class HsiAckValidationTests(unittest.TestCase):
+    def test_direct_haip_16_byte_trigger_ack_is_accepted(self):
+        packet = struct.pack("<bbhIIi", 1, 0, 8, 0, 0, 123456789)
+        self.assertTrue(HSIPoller._is_successful_ack_packet(packet))
+
+    def test_live_haip_direct_trigger_ack_is_accepted(self):
+        packet = bytes.fromhex("00000800020000000000000000000000")
+        self.assertTrue(HSIPoller._is_successful_ack_packet(packet))
+
     def test_trigger_ack_packet_is_accepted(self):
         packet = struct.pack("<i", 16) + struct.pack("<bbhIIi", 1, 0, 8, 0, 0, 123456789)
         self.assertTrue(HSIPoller._is_successful_ack_packet(packet))

@@ -1,0 +1,3 @@
+site_id,sensor_type,image_path,filename,format,width_px,height_px,channels,dtype,min_pixel,max_pixel,mean_pixel,std_pixel,file_size_bytes,sha256,qa_pass,qa_error
+site_A,hsi,data\haip_ui\site_A\line_scan\line_scan_1790949146006.png,line_scan_1790949146006.png,png,1200,600,3,uint8,15.0,255.0,75.68046527777778,40.82587421515508,9587,a4d98eb7d02d61dd93e65b82575e9bea0877113987b3660eaf8a01b373f5ea50,True,
+site_A,hsi,data\haip_ui\site_A\snapshot\snapshot_1790949145962.png,snapshot_1790949145962.png,png,1200,600,3,uint8,15.0,253.0,74.84705138888889,38.28712791091549,8248,8e197e72378bc6f09648c84909457f8cfd91b96d408e6210b312fba4b350170e,True,

@@ -1,0 +1,3 @@
+site_id,record_id,sensor_type,timestamp_utc,temperature_c,thermal_min_c,thermal_max_c,thermal_avg_c,hsi_timestamp_utc,hsi_record_id,hsi_gain,hsi_exposure_us,hsi_serial_number,hsi_image_path,time_delta_s,within_tolerance,fused
+site_A,thermal_123000,thermal,123.0,22.5,,,,125.0,hsi_125000,1.0,10000,,,2.0,False,False
+site_A,hsi_125000,hsi,125.0,,,,,125.0,hsi_125000,1.0,10000,,,,False,False

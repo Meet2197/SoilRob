@@ -192,6 +192,90 @@ class FusionEngine:
         with output_file.open("w", encoding="utf-8") as handle:
             json.dump(fused_records, handle, sort_keys=True, indent=2)
 
+        csv_file = output_dir / "fused_records.csv"
+        tabular_rows = []
+        used_hsi_ids = set()
+
+        for thermal_timestamp, thermal_raw, thermal_id in thermal_records:
+            eligible_hsi = [
+                hsi_record
+                for hsi_record in hsi_records
+                if hsi_record[2] not in used_hsi_ids
+            ]
+            nearest_hsi = min(
+                eligible_hsi,
+                key=lambda hsi_record: abs(hsi_record[0] - thermal_timestamp),
+                default=None,
+            )
+            hsi_timestamp = nearest_hsi[0] if nearest_hsi is not None else None
+            hsi_raw = nearest_hsi[1] if nearest_hsi is not None else {}
+            hsi_id = nearest_hsi[2] if nearest_hsi is not None else None
+            time_delta_s = (
+                hsi_timestamp - thermal_timestamp
+                if hsi_timestamp is not None
+                else None
+            )
+            matched = (
+                hsi_timestamp is not None
+                and abs(time_delta_s) <= tolerance_s
+            )
+            if matched:
+                used_hsi_ids.add(hsi_id)
+
+            thermal_harmonized = harmonize(
+                thermal_raw, site_id, "thermal", crs
+            )
+            hsi_harmonized = harmonize(
+                hsi_raw, site_id, "hsi", crs
+            ) if nearest_hsi is not None else {}
+
+            tabular_rows.append({
+                "site_id": site_id,
+                "record_id": thermal_id,
+                "sensor_type": "fused_thermal_hsi" if matched else "thermal",
+                "timestamp_utc": thermal_timestamp,
+                "temperature_c": thermal_harmonized.get("temperature_c"),
+                "thermal_min_c": thermal_harmonized.get("thermal_min_c"),
+                "thermal_max_c": thermal_harmonized.get("thermal_max_c"),
+                "thermal_avg_c": thermal_harmonized.get("thermal_avg_c"),
+                "hsi_timestamp_utc": hsi_timestamp,
+                "hsi_record_id": hsi_id,
+                "hsi_gain": hsi_harmonized.get("hsi_gain"),
+                "hsi_exposure_us": hsi_harmonized.get("hsi_exposure_us"),
+                "hsi_serial_number": hsi_harmonized.get("hsi_serial_number"),
+                "hsi_image_path": hsi_harmonized.get("hsi_image_path"),
+                "time_delta_s": time_delta_s,
+                "within_tolerance": matched,
+                "fused": matched,
+            })
+
+        matched_hsi_ids = used_hsi_ids
+        for hsi_timestamp, hsi_raw, hsi_id in hsi_records:
+            if hsi_id in matched_hsi_ids:
+                continue
+            hsi_harmonized = harmonize(hsi_raw, site_id, "hsi", crs)
+            tabular_rows.append({
+                "site_id": site_id,
+                "record_id": hsi_id,
+                "sensor_type": "hsi",
+                "timestamp_utc": hsi_timestamp,
+                "temperature_c": None,
+                "thermal_min_c": None,
+                "thermal_max_c": None,
+                "thermal_avg_c": None,
+                "hsi_timestamp_utc": hsi_timestamp,
+                "hsi_record_id": hsi_id,
+                "hsi_gain": hsi_harmonized.get("hsi_gain"),
+                "hsi_exposure_us": hsi_harmonized.get("hsi_exposure_us"),
+                "hsi_serial_number": hsi_harmonized.get("hsi_serial_number"),
+                "hsi_image_path": hsi_harmonized.get("hsi_image_path"),
+                "time_delta_s": None,
+                "within_tolerance": False,
+                "fused": False,
+            })
+
+        pd.DataFrame(tabular_rows).to_csv(csv_file, index=False)
+
         return {
             "site_id": site_id,
             "thermal_count": len(thermal_records),
@@ -201,6 +285,7 @@ class FusionEngine:
             "unmatched_hsi_count": len(hsi_records) - len(fused_records),
             "output_dir": str(output_dir),
             "output_file": str(output_file),
+            "csv_file": str(csv_file),
         }
 
     def _try_fuse(self, site_id: str):
