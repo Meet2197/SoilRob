@@ -5,8 +5,11 @@ import inspect
 import requests
 import struct
 from datetime import datetime, timezone
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+IMAGE_CONTENT_TYPES = {"image/jpeg": ".jpg", "jpeg": ".jpg"}
 
 
 class ThermalPoller(threading.Thread):
@@ -17,23 +20,37 @@ class ThermalPoller(threading.Thread):
         port: int,
         poll_hz: float,
         callback,
-        endpoint: str = "/api/spot",
-        temperature_field: str = "spot_temp_f",
+        endpoint: str = "/api/spot/1.json?pretty=true&tempunit=F",
+        temperature_field: str = "valueT",
+        validity_field: str | None = None,
+        validity_value: str = "=",
         timeout_s: float = 2.0,
         protocol: str = "http",
         modbus_register_address: int = 1018,
         modbus_unit_id: int = 1,
+        image_endpoint: str | None = None,
+        image_dir: str | Path | None = None,
+        image_timeout_s: float = 10.0,
     ):
         super().__init__(daemon=True)
         if protocol not in {"http", "modbus_tcp"}:
             raise ValueError(f"Unsupported thermal protocol: {protocol!r}")
+        if image_endpoint and not image_dir:
+            raise ValueError("image_dir is required when image_endpoint is configured")
         self.site_id = site_id
         self.ip = ip
         self.port = port
         self.base_url = f"http://{ip}:{port}"
         self.endpoint = "/" + endpoint.lstrip("/")
+        self.image_endpoint = (
+            "/" + image_endpoint.lstrip("/") if image_endpoint else None
+        )
+        self.image_dir = Path(image_dir) if image_dir else None
         self.temperature_field = temperature_field
+        self.validity_field = validity_field
+        self.validity_value = validity_value
         self.timeout_s = timeout_s
+        self.image_timeout_s = image_timeout_s
         self.protocol = protocol
         self.modbus_register_address = modbus_register_address
         self.modbus_unit_id = modbus_unit_id
@@ -54,6 +71,17 @@ class ThermalPoller(threading.Thread):
             data = resp.json()
             if not isinstance(data, dict):
                 raise ValueError("response must be a JSON object")
+            if (
+                self.validity_field
+                and data.get(self.validity_field) != self.validity_value
+            ):
+                logger.warning(
+                    "[ThermalPoller:%s] skipping invalid spot reading: %s=%r",
+                    self.site_id,
+                    self.validity_field,
+                    data.get(self.validity_field),
+                )
+                return None
             temperature = data.get(self.temperature_field)
             if temperature is None:
                 raise ValueError(
@@ -69,10 +97,17 @@ class ThermalPoller(threading.Thread):
                 logger.info("[ThermalPoller:%s] camera connection restored", self.site_id)
             self._offline = False
             self._failure_count = 0
-            return {
+            timestamp = datetime.now(timezone.utc).timestamp()
+            capture_id = f"{self.site_id}_{int(timestamp * 1000)}"
+            reading = {
                 "temp_f": temperature,
-                "timestamp_utc": datetime.now(timezone.utc).timestamp(),
+                "timestamp_utc": timestamp,
+                "capture_id": capture_id,
             }
+            image_path = self._save_current_image(capture_id)
+            if image_path is not None:
+                reading["image_path"] = image_path
+            return reading
         except requests.HTTPError as exc:
             status_code = exc.response.status_code if exc.response is not None else None
             if status_code == 404:
@@ -88,6 +123,41 @@ class ThermalPoller(threading.Thread):
             return None
         except (TypeError, ValueError) as exc:
             self._record_failure(f"invalid response from {url}: {exc}")
+            return None
+
+    def _save_current_image(self, capture_id: str) -> str | None:
+        if self.image_endpoint is None or self.image_dir is None:
+            return None
+
+        url = f"{self.base_url}{self.image_endpoint}"
+        try:
+            response = requests.get(url, timeout=self.image_timeout_s)
+            response.raise_for_status()
+            content_type = (
+                response.headers.get("Content-Type", "")
+                .split(";", maxsplit=1)[0]
+                .strip()
+                .lower()
+            )
+            suffix = IMAGE_CONTENT_TYPES.get(content_type)
+            if suffix is None:
+                raise ValueError(
+                    f"unsupported image content type {content_type!r}"
+                )
+            if not response.content.startswith(b"\xff\xd8"):
+                raise ValueError("camera image response is not a valid JPEG")
+
+            self.image_dir.mkdir(parents=True, exist_ok=True)
+            image_path = self.image_dir / f"{capture_id}{suffix}"
+            image_path.write_bytes(response.content)
+            return str(image_path)
+        except (requests.RequestException, OSError, ValueError) as exc:
+            logger.warning(
+                "[ThermalPoller:%s] current image capture failed at %s: %s",
+                self.site_id,
+                url,
+                exc,
+            )
             return None
 
     @staticmethod
@@ -157,12 +227,14 @@ class ThermalPoller(threading.Thread):
                 logger.info("[ThermalPoller:%s] camera connection restored", self.site_id)
             self._offline = False
             self._failure_count = 0
+            timestamp = datetime.now(timezone.utc).timestamp()
             return {
                 "thermal_temperature": spot,
                 "box1_min_c": box_min,
                 "box1_max_c": box_max,
                 "box1_avg_c": box_avg,
-                "timestamp_utc": datetime.now(timezone.utc).timestamp(),
+                "timestamp_utc": timestamp,
+                "capture_id": f"{self.site_id}_{int(timestamp * 1000)}",
             }
         except (ModbusException, OSError, TypeError, ValueError, struct.error) as exc:
             self._record_failure(f"Modbus request failed for {self.ip}:{self.port}: {exc}")

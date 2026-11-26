@@ -1,0 +1,13 @@
+site_id,sensor_type,timestamp_utc,record_id,temperature_c,qa_pass,qa_summary
+site_A,hsi,125.0,hsi_125000,,True,within thresholds
+site_A,hsi,1795698977.456569,hsi_1795698977456,,True,within thresholds
+site_A,hsi,1795699025.188122,hsi_1795699025188,,True,within thresholds
+site_A,hsi,1795699120.790283,hsi_1795699120790,,True,within thresholds
+site_A,hsi,1795699216.356314,hsi_1795699216356,,True,within thresholds
+site_A,hsi,1795699264.72834,hsi_1795699264728,,True,within thresholds
+site_A,hsi,1795700059.177023,hsi_1795700059177,,True,within thresholds
+site_A,hsi,1795700154.738492,hsi_1795700154738,,True,within thresholds
+site_A,hsi,1795700251.528893,hsi_1795700251528,,True,within thresholds
+site_A,hsi,1795700299.249236,hsi_1795700299249,,True,within thresholds
+site_A,hsi,1795700394.82503,hsi_1795700394825,,True,within thresholds
+site_A,hsi,1795700560.390107,hsi_1795700560390,,True,within thresholds

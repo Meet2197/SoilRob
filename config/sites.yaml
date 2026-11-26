@@ -6,13 +6,20 @@ sites:
     thermal:
       ip: "169.254.79.239"
       port: 80
-      poll_hz: 1
+      poll_hz: 0.1
       acquisition_interval_s: 10
       acquisition_enabled: true
+      spot_endpoint: "/api/spot/1.json?pretty=true&tempunit=F"
+      temperature_field: "valueT"
+      validity_field: "valueValid"
+      validity_value: "="
+      image_endpoint: "/api/image/current?imgformat=JPEG"
+      image_request_timeout_s: 10
 
       temporary_dir: "data/thermal_temp/site_A"
       evaluation_dir: "data/thermal_evaluation/site_A"
       csv_filename: "thermal_evaluation.csv"
+      image_dir: 'C:\Users\SOS\Desktop\Data fusion\FLIR'
 
       qa:
         enabled: true
@@ -32,6 +39,8 @@ sites:
       exposure_us: 10000
       temporary_dir: "data/hsi_temp/site_A"
       evaluation_dir: "data/hsi_evaluation/site_A"
+      image_dir: 'C:\Users\SOS\Desktop\Data fusion\HAIP_BlackBullet'
+      image_source_dir: 'C:\Users\SOS\Desktop\line scan trail'
 
 
   site_B:

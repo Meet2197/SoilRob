@@ -168,7 +168,7 @@ class HSIPoller(threading.Thread):
             )
 
         while not self._stop_event.is_set():
-            description = f"{self.site_id}_{int(time.time())}"
+            description = f"{self.site_id}_{int(time.time() * 1000)}"
             if serial is None:
                 serial = self._get_serial_number()
                 if serial is not None:
@@ -179,7 +179,7 @@ class HSIPoller(threading.Thread):
                     "gain": self.gain,
                     "exposure_us": self.exposure_us,
                     "serial_number": serial,
-                    "image_path": description,
+                    "capture_id": description,
                     "timestamp_utc": datetime.now(timezone.utc).timestamp(),
                 }
                 self.callback(self.site_id, reading)

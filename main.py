@@ -123,14 +123,22 @@ def start_pollers(config: dict, engine: FusionEngine) -> list:
                 poll_hz,
                 callback=lambda sid, raw, c=crs:
                     engine.add_thermal(sid, raw, c),
-                endpoint=thermal_cfg.get("spot_endpoint", "/api/spot"),
-                temperature_field=thermal_cfg.get("temperature_field", "spot_temp_f"),
+                endpoint=thermal_cfg.get(
+                    "spot_endpoint",
+                    "/api/spot/1.json?pretty=true&tempunit=F",
+                ),
+                temperature_field=thermal_cfg.get("temperature_field", "valueT"),
+                validity_field=thermal_cfg.get("validity_field"),
+                validity_value=thermal_cfg.get("validity_value", "="),
                 timeout_s=thermal_cfg.get("request_timeout_s", 2.0),
                 protocol=thermal_cfg.get("protocol", "http"),
                 modbus_register_address=thermal_cfg.get(
                     "modbus_register_address", 1018
                 ),
                 modbus_unit_id=thermal_cfg.get("modbus_unit_id", 1),
+                image_endpoint=thermal_cfg.get("image_endpoint"),
+                image_dir=thermal_cfg.get("image_dir"),
+                image_timeout_s=thermal_cfg.get("image_request_timeout_s", 10.0),
             )
 
             thermal_poller.start()

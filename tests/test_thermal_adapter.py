@@ -1,8 +1,10 @@
 import struct
 import sys
+import tempfile
 import types
 import unittest
 from unittest.mock import patch
+from pathlib import Path
 
 from src.adapters.thermal_adapter import ThermalPoller
 
@@ -119,7 +121,7 @@ class ThermalModbusTests(unittest.TestCase):
                 pass
 
             def json(self):
-                return {"spot_temp_f": 77.0}
+                return {"valueT": 77.0}
 
         poller = ThermalPoller("site_A", "camera", 80, 1, callback=lambda *_: None)
         with patch("src.adapters.thermal_adapter.requests.get", return_value=Response()):
@@ -127,6 +129,90 @@ class ThermalModbusTests(unittest.TestCase):
 
         self.assertEqual(poller.protocol, "http")
         self.assertEqual(reading["temp_f"], 77.0)
+        self.assertEqual(
+            poller.endpoint, "/api/spot/1.json?pretty=true&tempunit=F"
+        )
+
+    def test_http_read_saves_current_flir_jpeg_with_capture_id(self):
+        image_bytes = b"\xff\xd8\xfftest-jpeg"
+
+        class Response:
+            def __init__(self, data=None, headers=None, content=b""):
+                self.data = data
+                self.headers = headers or {}
+                self.content = content
+
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return self.data
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            poller = ThermalPoller(
+                "site_A",
+                "camera",
+                80,
+                1,
+                callback=lambda *_: None,
+                temperature_field="valueT",
+                validity_field="valueValid",
+                image_endpoint="/api/image/current?imgformat=JPEG",
+                image_dir=temp_dir,
+            )
+            with patch(
+                "src.adapters.thermal_adapter.requests.get",
+                side_effect=[
+                    Response(data={"valueT": 70.7, "valueValid": "="}),
+                    Response(
+                        headers={"Content-Type": "jpeg"},
+                        content=image_bytes,
+                    ),
+                ],
+            ) as get:
+                reading = poller._read_spot_temperature()
+
+            image_path = Path(reading["image_path"])
+            self.assertEqual(reading["temp_f"], 70.7)
+            self.assertEqual(image_path.stem, reading["capture_id"])
+            self.assertEqual(image_path.read_bytes(), image_bytes)
+            self.assertEqual(get.call_count, 2)
+
+    def test_http_skips_invalid_flir_spot_readings(self):
+        class Response:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"valueT": 70.7, "valueValid": "!"}
+
+        poller = ThermalPoller(
+            "site_A",
+            "camera",
+            80,
+            1,
+            callback=lambda *_: None,
+            validity_field="valueValid",
+        )
+        with patch(
+            "src.adapters.thermal_adapter.requests.get",
+            return_value=Response(),
+        ) as get:
+            reading = poller._read_spot_temperature()
+
+        self.assertIsNone(reading)
+        self.assertEqual(get.call_count, 1)
+
+    def test_image_endpoint_requires_an_image_directory(self):
+        with self.assertRaisesRegex(ValueError, "image_dir is required"):
+            ThermalPoller(
+                "site_A",
+                "camera",
+                80,
+                1,
+                callback=lambda *_: None,
+                image_endpoint="/api/image/current?imgformat=JPEG",
+            )
 
 
 if __name__ == "__main__":

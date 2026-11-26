@@ -273,6 +273,13 @@ spot/minimum/maximum/average float32 temperatures, and sends them through the sa
 pipeline. Use `modbus_unit_id` to override the default unit ID (`1`). The Modbus path
 requires the project dependencies installed with `uv sync`.
 
+For the FLIR AX8 HTTP API, the spot reading uses
+`/api/spot/1.json?pretty=true&tempunit=F` and the `valueT` field; samples are accepted
+only when `valueValid` is `"="`. Configure
+`image_endpoint: "/api/image/current?imgformat=JPEG"` with `image_dir` to save a
+current JPEG snapshot for each accepted thermal reading. The image path is recorded
+with the raw sensor data and included in the synchronized CSV.
+
 HAIP dashboard preview images are saved under both `data/haip_ui/<site>/<mode>/` and
 `output/<site>/<mode>/`. These are generated preview images, not captured images from the
 physical camera.
@@ -366,14 +373,36 @@ All storage paths below are relative to the project root. The locations can be c
 | Raw thermal sensor records | `data/thermal_temp/<site_id>/` |
 | Raw HSI sensor records | `data/hsi_temp/<site_id>/` |
 | Thermal QA export CSV | `data/thermal_evaluation/<site_id>/` |
+| Thermal image files | Configured `image_dir` (site_A: `C:\Users\SOS\Desktop\Data fusion\FLIR\`) |
+| HSI image files | Configured `image_dir` (site_A: `C:\Users\SOS\Desktop\Data fusion\HAIP_BlackBullet\`) |
 | Synchronized thermal and HSI records | `data/fused_archive/<site_id>/fused_records.json` |
 | Tabular synchronized thermal and HSI records | `data/fused_archive/<site_id>/fused_records.csv` |
 | HSI dashboard preview images | `data/haip_ui/<site_id>/<mode>/` |
 | HSI dashboard output images | `output/<site_id>/<mode>/` |
 
-Thermal and HSI records use the `temporary_dir` configured for each sensor and site in `config/sites.yaml`.
+Thermal and HSI records use the `temporary_dir` configured for each sensor and site in
+`config/sites.yaml`. A record's local `image_path`, when provided, is copied to the
+matching sensor image folder and that saved path is exported. Each sensor can override
+its default folder with `image_dir`. Dashboard preview images are generated examples,
+not captured images from either physical camera. HAIP `.img` files are preserved as-is;
+an adjacent `.hdr` file is copied alongside the image when present.
+
+For `site_A`, sensor images are stored separately under
+`C:\Users\SOS\Desktop\Data fusion\FLIR\` and
+`C:\Users\SOS\Desktop\Data fusion\HAIP_BlackBullet\`. HAIP line-scan exports are read
+from `C:\Users\SOS\Desktop\line scan trail\`; matching filenames containing the
+poller's `capture_id` are copied into the HAIP output folder during synchronization.
 
 The synchronized archive is produced by `POST /api/fusion/synchronize/{site_id}`. The project pairs each thermal record once with an HSI record whose timestamp is within `fusion.time_tolerance_s` (default: 1 second), then writes the result to `fusion.archive_dir/<site_id>/fused_records.json` and `fusion.archive_dir/<site_id>/fused_records.csv`. The configured archive root is `data/fused_archive` in `config/sites.yaml`.
+
+The CSV keeps separate thermal and HSI timestamps, record IDs, sensor metadata, image
+paths, per-sensor location/CRS, source-record IDs, time difference, and an explicit
+`fused` flag. Unmatched records remain in the file with missing fields for the other
+sensor; inspect `fused`/`within_tolerance` rather than treating every row as a fused
+pair. When configured, the FLIR poller downloads a current JPEG snapshot for each
+temperature reading. The HAIP poller records a capture ID after triggering the camera;
+its images must be exported into the configured sensor folder with a filename matching
+that ID, or supplied as a local `image_path` in the sensor record.
 
 ---
 
@@ -412,7 +441,7 @@ docker run -p 8000:8000 Data Fusion-platform
 | ---------------------------------------- | ----------------------------------------- | --------------------------------------------------------------- |
 | `python-can not installed - skipping`  | Missing CAN library                       | `pip install python-can`                                      |
 | CAN bus open failed                      | Wrong channel name or interface not up    | On Linux:`sudo ip link set can0 up type can bitrate 250000`   |
-| Thermal poller reports HTTP 404           | The camera is reachable, but its API route is not `/api/spot` | Set `thermal.spot_endpoint` and `thermal.temperature_field` in `config/sites.yaml` to the endpoint and JSON field supported by that AX8 firmware. |
+| Thermal poller reports HTTP 404           | The camera is reachable, but the configured API route is unavailable | For a FLIR AX8, use `/api/spot/1.json?pretty=true&tempunit=F` with `temperature_field: valueT`; verify the correct spot ID and firmware. |
 | Thermal poller connection timeout         | Camera IP/port is unreachable from this PC | Verify the camera's current IP, subnet mask, Ethernet/Wi-Fi route, and port 80; a timeout is not fixed by changing the API path. |
 | Thermal poller reports a Modbus request failure | Modbus TCP connection, register read, or response failed | Confirm `protocol: modbus_tcp`, the camera IP, port 502, register address, and unit ID; install dependencies with `uv sync`. |
 | HSI serial number could not be read       | HSI TCP endpoint did not return its serial response | Verify the configured IP/port 7892 and camera network; the poller now retries serial lookup while running. |

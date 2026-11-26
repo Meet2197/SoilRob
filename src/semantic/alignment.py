@@ -8,7 +8,8 @@ from datetime import datetime, timezone
 CANONICAL_SCHEMA = [
     "record_id", "site_id", "sensor_type", "timestamp_utc",
     "temperature_c", "hsi_gain", "hsi_exposure_us",
-    "hsi_serial_number", "hsi_image_path",
+    "hsi_serial_number", "capture_id", "hsi_capture_id",
+    "thermal_image_path", "hsi_image_path",
     "thermal_min_c", "thermal_max_c", "thermal_avg_c",
     "latitude", "longitude", "elevation_m", "crs",
 ]
@@ -21,10 +22,10 @@ SITE_FIELD_MAP = {
         "box1_min_c": "thermal_min_c",
         "box1_max_c": "thermal_max_c",
         "box1_avg_c": "thermal_avg_c",
+        "capture_id": "capture_id",
         "gain": "hsi_gain",
         "exposure_us": "hsi_exposure_us",
         "serial_number": "hsi_serial_number",
-        "image_path": "hsi_image_path",
     },
     "site_B": {
         "temp_f": "temperature_c",
@@ -32,10 +33,10 @@ SITE_FIELD_MAP = {
         "box1_min_c": "thermal_min_c",
         "box1_max_c": "thermal_max_c",
         "box1_avg_c": "thermal_avg_c",
+        "capture_id": "capture_id",
         "gain": "hsi_gain",
         "exposure_us": "hsi_exposure_us",
         "serial_number": "hsi_serial_number",
-        "image_path": "hsi_image_path",
     },
     "site_C": {
         "temp_f": "temperature_c",
@@ -44,10 +45,10 @@ SITE_FIELD_MAP = {
         "box1_min_c": "thermal_min_c",
         "box1_max_c": "thermal_max_c",
         "box1_avg_c": "thermal_avg_c",
+        "capture_id": "capture_id",
         "gain": "hsi_gain",
         "exposure_us": "hsi_exposure_us",
         "serial_number": "hsi_serial_number",
-        "image_path": "hsi_image_path",
     },
 }
 
@@ -59,7 +60,7 @@ UNIT_CONVERSIONS = {
 
 SAMPLING_PROTOCOLS = {
     # documents each site's native acquisition rate/mode for provenance
-    "site_A": {"thermal_hz": 1, "hsi_mode": "snapshot"},
+    "site_A": {"thermal_hz": 0.1, "hsi_mode": "snapshot"},
     "site_B": {"thermal_hz": 1, "hsi_mode": "line-scan"},
     "site_C": {"thermal_hz": 1, "hsi_mode": "snapshot"},
 }
@@ -76,7 +77,12 @@ def harmonize(raw: dict, site_id: str, sensor_type: str, crs: str) -> dict:
     out["record_id"] = f"{site_id}_{sensor_type}_{out['timestamp_utc']}"
 
     for raw_field, value in raw.items():
-        canon = mapping.get(raw_field)
+        if raw_field == "image_path":
+            canon = "thermal_image_path" if sensor_type == "thermal" else "hsi_image_path"
+        else:
+            canon = mapping.get(raw_field)
+        if raw_field == "capture_id" and sensor_type == "hsi":
+            canon = "hsi_capture_id"
         if canon is None:
             continue
         if raw_field in UNIT_CONVERSIONS and value is not None:
